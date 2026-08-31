@@ -96,8 +96,8 @@
   .journey-point.arrival{display:none}
   .logbook-detail{grid-template-columns:1fr 1fr!important;gap:13px!important;margin:0 12px 12px!important;padding:13px!important}
 
-  .settings-page{padding-left:10px;padding-right:10px}
-  .control-console{min-height:0!important;border-radius:14px!important}
+  .settings-page{min-height:calc(100dvh - 64px);padding-right:10px;padding-bottom:calc(96px + env(safe-area-inset-bottom));padding-left:10px;overflow:visible!important}
+  .control-console{display:block!important;min-height:0!important;overflow:visible!important;border-radius:14px!important}
   .console-statusbar{display:none!important}
   .settings-nav{padding:18px 16px 14px!important;background:#fff!important}
   .settings-heading{padding:2px 0 14px!important}.settings-heading h1{font-size:20px!important}
@@ -106,9 +106,10 @@
   .settings-workspace>header{display:none!important}
   .settings-workspace h2{font-size:18px!important}
   .workspace-state>svg{display:none}
-  .settings-fields{gap:12px!important;padding:14px!important}
+  .settings-workspace{display:block!important;overflow:visible!important}
+  .settings-fields{gap:12px!important;padding:14px!important;overflow:visible!important}
   .settings-fields>label{padding:16px 13px 13px!important}
-  .settings-workspace>footer{bottom:calc(64px + env(safe-area-inset-bottom))!important;z-index:4;padding:10px 14px!important;box-shadow:0 -8px 18px rgba(36,55,78,.06)}
+  .settings-workspace>footer{position:static!important;z-index:auto!important;margin:0;padding:14px!important;box-shadow:none!important}
   .settings-workspace>footer button{min-height:46px}
 
   .operation-toast{top:calc(66px + env(safe-area-inset-top))!important}
