@@ -1,0 +1,62 @@
+from enum import StrEnum
+
+
+class SlotStatus(StrEnum):
+    AVAILABLE = "AVAILABLE"
+    OCCUPIED = "OCCUPIED"
+
+
+class SettlementMode(StrEnum):
+    T0 = "T0"
+    T1 = "T1"
+    CUSTOM = "CUSTOM"
+
+
+class VoyageStatus(StrEnum):
+    OPEN = "OPEN"
+    CLOSED = "CLOSED"
+    CANCELLED = "CANCELLED"
+
+
+class RuntimeState(StrEnum):
+    IN_FLIGHT = "IN_FLIGHT"
+    NEAR_RETURN = "NEAR_RETURN"
+    TARGET_REACHED_NOT_SELLABLE = "TARGET_REACHED_NOT_SELLABLE"
+    READY_TO_RETURN = "READY_TO_RETURN"
+    QUOTE_STALE = "QUOTE_STALE"
+
+
+class ReturnPriceMode(StrEnum):
+    BID1 = "BID1"
+    LAST = "LAST"
+
+
+class MarketStatus(StrEnum):
+    OPEN = "OPEN"
+    CLOSED = "CLOSED"
+
+
+class QuoteStatus(StrEnum):
+    FRESH = "FRESH"
+    STALE = "STALE"
+    UNAVAILABLE = "UNAVAILABLE"
+
+
+class AlertEventType(StrEnum):
+    NEAR_RETURN_ENTERED = "NEAR_RETURN_ENTERED"
+    TARGET_REACHED = "TARGET_REACHED"
+    READY_TO_RETURN = "READY_TO_RETURN"
+    TARGET_LOST = "TARGET_LOST"
+    LONG_VOYAGE = "LONG_VOYAGE"
+    QUOTE_STALE = "QUOTE_STALE"
+    QUOTE_RECOVERED = "QUOTE_RECOVERED"
+
+
+class AuditAction(StrEnum):
+    CREATE_VOYAGE = "CREATE_VOYAGE"
+    UPDATE_VOYAGE = "UPDATE_VOYAGE"
+    CANCEL_VOYAGE = "CANCEL_VOYAGE"
+    CREATE_EXIT = "CREATE_EXIT"
+    UPDATE_SETTINGS = "UPDATE_SETTINGS"
+    RECONCILE_POSITION = "RECONCILE_POSITION"
+

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 96" role="img" aria-labelledby="title desc">
+  <title id="title">钱途 CapitalVoyage</title>
+  <desc id="desc">钱途项目完整品牌标志</desc>
+  <defs><linearGradient id="bg" x1="8" y1="5" x2="78" y2="83" gradientUnits="userSpaceOnUse"><stop stop-color="#347EE8"/><stop offset="1" stop-color="#1555B2"/></linearGradient></defs>
+  <rect x="6" y="6" width="84" height="84" rx="25" fill="url(#bg)"/>
+  <path d="M66.5 27A27.6 27.6 0 1 0 70 63.5" fill="none" stroke="#fff" stroke-width="12" stroke-linecap="round"/>
+  <path d="M45.5 51.5c11-11.7 20.6-13.1 29.8-6.6" fill="none" stroke="#fff" stroke-width="4.7" stroke-linecap="round"/>
+  <path d="m67.5 37.5 11 8.5-13 5 3.3-6.8-1.3-6.7Z" fill="#fff"/>
+  <circle cx="70" cy="64" r="9.2" fill="#31C48D" stroke="#fff" stroke-width="3.7"/>
+  <text x="112" y="45" fill="#172333" font-family="'Noto Sans SC','PingFang SC',sans-serif" font-size="30" font-weight="700">钱途</text>
+  <text x="112" y="69" fill="#718091" font-family="'DM Sans',Arial,sans-serif" font-size="15" font-weight="600" letter-spacing="1.2">CapitalVoyage</text>
+  <path d="M112 78h154" stroke="#DFE6ED"/>
+  <text x="278" y="69" fill="#159568" font-family="'Noto Sans SC','PingFang SC',sans-serif" font-size="11" font-weight="600" letter-spacing="1">让资金飞向目标</text>
+</svg>

@@ -1,0 +1,29 @@
+{
+  "name": "capital-voyage-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "d3-geo": "^3.1.1",
+    "lucide-vue-next": "^0.468.0",
+    "pinia": "^3.0.0",
+    "topojson-client": "^3.1.0",
+    "vue": "^3.5.0",
+    "vue-router": "^4.5.0",
+    "world-atlas": "^2.0.2"
+  },
+  "devDependencies": {
+    "@rolldown/binding-darwin-arm64": "^1.2.6",
+    "@types/d3-geo": "^3.1.1",
+    "@types/topojson-client": "^3.1.5",
+    "@vitejs/plugin-vue": "6.0.8",
+    "typescript": "5.9.3",
+    "vite": "8.2.2",
+    "vue-tsc": "^3.0.0"
+  }
+}

@@ -1,0 +1,9 @@
+export interface Voyage{ id:number;voyage_no:string;slot_id:number;symbol:string;name:string;entry_time:string;entry_price:string;entry_quantity:number;entry_fee:string;entry_cost:string;target_return:string;sellable_at:string;status:string;remaining_quantity:number;runtime_state:string;monitor_price:string|null;net_return:string|null;quote_time:string|null }
+export interface Slot{id:number;slot_no:number;budget_amount:string;status:string;voyage:Voyage|null}
+export interface ReturnVoyage{voyage_no:string;remaining_quantity:number;entry_price:string;monitor_price:string;net_return:string;target_return:string;runtime_state:string}
+export interface ReturnGroup{symbol:string;name:string;system_total_quantity:number;ready_quantity:number;ready_voyages:ReturnVoyage[]}
+export type FlightVisualState='PARKED_NEGATIVE'|'FLYING'|'APPROACHING'|'ARRIVED_LOCKED'|'READY'|'WAITING_QUOTE'
+export interface DashboardAirport{symbol:string;name:string;flight_count:number;negative_count:number;waiting_count:number;alarm:boolean;status:'ACTIVE'|'ALERT'|'WAITING'}
+export interface DashboardRoute{id:number;voyage_no:string;symbol:string;name:string;remaining_quantity:number;capital_amount:string;net_return:string|null;target_return:string;distance_to_target:string|null;progress:string;progress_percent:string;monitor_price:string|null;runtime_state:string;visual_state:FlightVisualState;quote_status:string;quote_time:string|null;entry_time:string;sellable_at:string}
+export interface Dashboard{market:{status:string;quote_status:string;updated_at:string|null};capital:{total:string;in_flight:string;available:string;ready_to_return:string};counts:{in_flight:number;near_return:number;ready_to_return:number;available_slots:number};airports:DashboardAirport[];routes:DashboardRoute[];near_returns:DashboardRoute[];ready_returns:DashboardRoute[]}
+export interface HistoryData{stats:Record<string,string|number>;records:any[]}

@@ -1,0 +1,2 @@
+"""Tradable security domain."""
+

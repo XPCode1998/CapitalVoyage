@@ -1,0 +1,7 @@
+export const money=(value:string|number|null|undefined)=>new Intl.NumberFormat('zh-CN',{style:'currency',currency:'CNY',minimumFractionDigits:2}).format(Number(value||0))
+export const number=(value:string|number|null|undefined)=>new Intl.NumberFormat('zh-CN').format(Number(value||0))
+export const percent=(value:string|number|null|undefined)=>`${Number(value||0)>=0?'+':''}${(Number(value||0)*100).toFixed(2)}%`
+export const dateTime=(value:string|null|undefined)=>value?new Intl.DateTimeFormat('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(value)):'—'
+export const stateLabel=(state:string)=>({IN_FLIGHT:'巡航',NEAR_RETURN:'近进',TARGET_REACHED_NOT_SELLABLE:'着陆待解锁',READY_TO_RETURN:'着陆',QUOTE_STALE:'巡航',AVAILABLE:'待调度',OCCUPIED:'巡航',PARKED_NEGATIVE:'等待起飞',FLYING:'巡航',APPROACHING:'近进',ARRIVED_LOCKED:'着陆待解锁',READY:'着陆',WAITING_QUOTE:'巡航'}[state]||state)
+export const stateClass=(state:string)=>state==='READY_TO_RETURN'||state==='READY'?'ready':state==='NEAR_RETURN'||state==='TARGET_REACHED_NOT_SELLABLE'||state==='APPROACHING'||state==='ARRIVED_LOCKED'?'near':state==='PARKED_NEGATIVE'?'waiting':state==='AVAILABLE'?'available':'flight'
+export const stateDescription=(state:string)=>({IN_FLIGHT:'收益为正，航班正向财富自由塔台巡航',NEAR_RETURN:'已完成目标航程的 80%，进入近进阶段',TARGET_REACHED_NOT_SELLABLE:'收益已达目标，等待可卖时间解锁',READY_TO_RETURN:'已满足收益目标与交易条件，可以返航',QUOTE_STALE:'休市期间使用最近一次有效收盘价',PARKED_NEGATIVE:'当前收益为负，航班停留在起飞机场'}[state]||'')

@@ -1,0 +1,2 @@
+"""Manual exit transaction domain."""
+

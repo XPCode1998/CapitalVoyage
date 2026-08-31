@@ -1,0 +1,2 @@
+"""CapitalVoyage backend package."""
+
