@@ -1,0 +1,125 @@
+/* Mobile workspace: dedicated navigation, touch targets and safe-area handling. */
+@media(max-width:760px){
+  html{overflow-x:hidden;background:var(--canvas-bg);-webkit-text-size-adjust:100%}
+  body{min-width:320px;overflow-x:hidden;overscroll-behavior-y:none}
+  .shell{display:block;min-height:100dvh}
+  .shell>aside{display:none!important}
+  .shell>main{min-height:100dvh;padding-top:calc(58px + env(safe-area-inset-top));padding-bottom:calc(64px + env(safe-area-inset-bottom))}
+  .page{width:100%;padding:14px 14px 24px}
+
+  button,a,[role="button"]{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+  button:not(.icon-btn):not(.modal-close):not(.glass-close),[role="button"]{min-height:44px}
+  input,select,textarea{font-size:16px!important}
+  input,select{min-height:46px!important}
+
+  .dashboard-page{min-height:auto!important;padding:12px 12px 22px!important}
+  .dashboard-core{display:block!important}
+  .dashboard-core .flight-monitor{height:auto!important;min-height:0}
+  .monitor-header{padding:14px 14px 10px!important;gap:12px!important}
+  .legend{gap:5px!important;overflow-x:auto;flex-wrap:nowrap!important;justify-content:flex-start!important;padding-bottom:2px;scrollbar-width:none}
+  .legend::-webkit-scrollbar{display:none}
+  .legend button{flex:0 0 auto;min-height:32px!important}
+  .mobile-flight-list{gap:8px!important;padding:0 8px 8px!important}
+  .mobile-flight-list article>header{padding:11px!important}
+  .mobile-flight-list button{grid-template-columns:minmax(90px,1fr) minmax(70px,1.25fr) 50px!important;min-height:56px!important;padding:10px 11px!important}
+
+  .ticket-grid{gap:11px!important}
+  .slot-ticket{height:auto!important;min-height:226px!important;grid-template-columns:minmax(0,82%) minmax(54px,18%)!important}
+  .slot-ticket .ticket-main{padding-top:15px;padding-bottom:13px}
+  .slot-ticket .ticket-voyage{padding-top:9px}
+  .slot-ticket .security{margin-top:9px}
+  .slot-ticket .voyage-snapshot{margin-top:10px}
+  .slot-ticket .ticket-stub{padding-top:14px;padding-bottom:12px}
+
+  .flight-side-panel{width:100vw!important;height:100dvh!important;border:0!important}
+  .flight-side-strip{padding-top:env(safe-area-inset-top);flex-basis:calc(44px + env(safe-area-inset-top))!important}
+  .flight-side-heading{padding:15px 16px 10px!important}
+  .flight-side-heading h2{font-size:22px!important}
+  .flight-side-heading section>span{font-size:11px!important}
+  .flight-side-body{padding:0 16px 14px!important;overscroll-behavior:contain}
+  .flight-side-footer{padding:10px 16px calc(10px + env(safe-area-inset-bottom))!important}
+  .flight-side-footer .side-panel-actions{gap:7px!important}
+  .flight-side-footer .panel-action{min-height:46px!important;font-size:12px!important}
+  .detail-list{grid-template-columns:1fr!important}
+  .detail-list div{min-height:42px!important}
+  .detail-return{grid-template-columns:1fr!important;min-height:0!important;padding:12px 14px!important}
+  .detail-return small{grid-column:1!important;grid-row:auto!important;max-width:none!important;margin-top:7px!important;padding:7px 0 0!important;border-top:1px solid #dfe8e3;border-left:0!important}
+  .aviation-form,.drawer-form{grid-template-columns:1fr!important}
+  .aviation-form>*{grid-column:1!important}
+  .boarding-route{min-height:78px!important;padding:12px 14px!important}
+  .boarding-route strong{font-size:17px!important}
+  .boarding-route span,.boarding-airway em{display:none}
+  .security-result{display:grid!important;gap:3px}
+  .preview-box{grid-template-columns:1fr 1fr!important}
+
+  .overlay{align-items:flex-end!important;padding:0!important;background:rgba(23,32,43,.38)}
+  .modal{width:100%!important;max-height:calc(92dvh - env(safe-area-inset-top))!important;margin:0;border-radius:18px 18px 0 0!important;box-shadow:0 -16px 42px rgba(20,35,52,.18)!important}
+  .modal>header{position:sticky;top:0;z-index:2;padding:16px!important;background:#fff}
+  .modal>.modal-body{overflow-y:auto!important;padding:18px 16px calc(18px + env(safe-area-inset-bottom))!important}
+  .modal .form-grid{grid-template-columns:1fr!important}
+  .modal .form-grid>*{grid-column:1!important}
+  .modal-actions{position:sticky;bottom:0;display:grid!important;grid-template-columns:1fr 1fr;padding-top:10px;background:#fff}
+  .modal-actions button{min-height:46px}
+
+  .returns-page-header{gap:12px!important;margin-bottom:14px!important;padding-bottom:14px!important}
+  .returns-page-header h1{font-size:22px!important}
+  .returns-page-header p:last-child{font-size:12px!important}
+  .return-count{grid-template-columns:auto auto;align-items:baseline;gap:8px;padding-left:10px!important}
+  .return-count b{font-size:22px!important}
+  .return-group{padding:16px!important}
+  .return-group>header{align-items:flex-start!important}
+  .system-position b{font-size:12px}
+  .allocation-list>div{grid-template-columns:1fr auto!important;gap:5px 12px;padding:12px 2px!important}
+  .allocation-list>div .positive{text-align:right}
+  .allocation-list>div .status{justify-self:start}
+  .return-group>footer{align-items:stretch!important;flex-direction:column;gap:14px}
+  .return-group>footer strong{font-size:28px!important}
+  .button-group{display:grid!important;grid-template-columns:1fr 1.35fr;width:100%}
+  .button-group button{width:100%;min-height:46px}
+  .allocation-editor{padding:12px!important}
+  .allocation-editor label{grid-template-columns:1fr 110px!important}
+
+  .logbook-summary{grid-template-columns:1fr 1fr!important;margin-bottom:10px!important}
+  .logbook-summary>div{min-height:72px;padding:12px!important}
+  .logbook-summary .summary-lead{grid-column:1/-1;min-height:88px}
+  .summary-lead strong{font-size:24px!important}
+  .logbook-toolbar{gap:14px!important;padding:16px 14px!important}
+  .arrival-heading>div>span{display:none}
+  .terminal-code{width:40px!important;height:40px!important}
+  .logbook-filters{display:grid!important;grid-template-columns:minmax(0,1fr) 108px}
+  .search-box{height:46px!important}
+  .logbook-filters select{width:100%!important;height:46px!important}
+  .logbook-list{padding:9px!important}
+  .logbook-main{grid-template-columns:1fr auto!important;gap:12px!important;min-height:0!important;padding:14px!important}
+  .logbook-flight{grid-column:1}.logbook-result{grid-column:2!important;grid-row:1;text-align:right!important}
+  .journey-point{grid-column:1/-1!important;padding-top:9px;border-top:1px solid var(--line-soft)}
+  .journey-point.arrival{display:none}
+  .logbook-detail{grid-template-columns:1fr 1fr!important;gap:13px!important;margin:0 12px 12px!important;padding:13px!important}
+
+  .settings-page{padding-left:10px;padding-right:10px}
+  .control-console{min-height:0!important;border-radius:14px!important}
+  .console-statusbar{display:none!important}
+  .settings-nav{padding:12px 10px!important;background:#fff!important}
+  .settings-heading{padding:2px 4px 12px!important}.settings-heading h1{font-size:19px!important}
+  .settings-nav nav{gap:7px!important;margin:0 -2px;padding:1px 2px 6px;scroll-snap-type:x proximity;scrollbar-width:none}
+  .settings-nav nav::-webkit-scrollbar{display:none}
+  .settings-nav nav button{min-width:max-content!important;min-height:40px!important;grid-template-columns:16px 1fr!important;gap:2px 7px!important;padding:8px 11px!important;scroll-snap-align:start}
+  .settings-nav nav button>svg{display:none}.settings-nav nav button>b{grid-column:2}.settings-nav nav button>small{display:none}
+  .settings-workspace>header{padding:16px!important}
+  .settings-workspace h2{font-size:18px!important}
+  .workspace-state>svg{display:none}
+  .settings-fields{gap:12px!important;padding:14px!important}
+  .settings-fields>label{padding:16px 13px 13px!important}
+  .settings-workspace>footer{bottom:calc(64px + env(safe-area-inset-bottom))!important;z-index:4;padding:10px 14px!important;box-shadow:0 -8px 18px rgba(36,55,78,.06)}
+  .settings-workspace>footer button{min-height:46px}
+
+  .operation-toast{top:calc(66px + env(safe-area-inset-top))!important}
+}
+
+@media(max-width:370px){
+  .mobile-bottom-nav a>small{display:none}
+  .capital-metrics{grid-template-columns:1fr!important}
+  .preview-box{grid-template-columns:1fr!important}
+  .button-group{grid-template-columns:1fr!important}
+  .logbook-filters{grid-template-columns:1fr!important}
+}

@@ -4,6 +4,7 @@ import {useRouter} from 'vue-router'
 import {get} from '../api/client'
 import CapitalStatusPanel from '../components/dashboard/CapitalStatusPanel.vue'
 import FlightNetworkMap from '../components/dashboard/FlightNetworkMap.vue'
+import MobileCapitalSummary from '../components/dashboard/MobileCapitalSummary.vue'
 import type {Dashboard} from '../types'
 
 const data=ref<Dashboard|null>(null),error=ref(''),loading=ref(false)
@@ -23,6 +24,7 @@ onUnmounted(()=>{document.body.classList.remove('dashboard-lock');if(refreshTime
     <p v-if="error" class="error-banner">更新失败：{{error}}。已保留最近一次态势。</p>
 
     <template v-if="data">
+      <MobileCapitalSummary :data="data"/>
       <section class="dashboard-core">
         <CapitalStatusPanel :capital="data.capital" :routes="data.routes" :available-slots="data.counts.available_slots"/>
         <FlightNetworkMap :airports="data.airports" :routes="data.routes" :selected-route-id="selectedRouteId" @select-route="selectedRouteId=$event" @open-manifest="router.push({path:'/voyages',query:{voyage:$event}})"/>

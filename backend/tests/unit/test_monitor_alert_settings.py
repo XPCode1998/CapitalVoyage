@@ -5,14 +5,18 @@ from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
+import httpx
+import pytest
 
 from app.alert.models import AlertEvent
 from app.alert.service import AlertService
 from app.capital.service import CapitalService
 from app.core.enums import AlertEventType, RuntimeState, SettlementMode, SlotStatus
+from app.core.errors import DomainError
 from app.market.cache import QuoteCache
 from app.market.models import Quote
 from app.notification.base import Notifier
+from app.notification.feishu import FeishuNotifier
 from app.return_engine.engine import ReturnEngine
 from app.return_engine.fee import FeeCalculator
 from app.return_engine.models import FeeConfig
@@ -130,3 +134,24 @@ def test_long_voyage_alert_is_emitted_once(initialized_db_session):
     second = service.process_long_voyage(v.id, 11, 10, now=NOW + timedelta(days=1))
     assert first is not None and first.event_type == AlertEventType.LONG_VOYAGE.value
     assert second is None
+
+
+def test_feishu_notifier_rejects_business_error_in_success_response(monkeypatch):
+    def fake_post(*_args, **_kwargs):
+        return httpx.Response(
+            200,
+            json={"code": 19024, "msg": "Key Words Not Found"},
+            request=httpx.Request("POST", "https://open.feishu.cn/open-apis/bot/v2/hook/example"),
+        )
+
+    monkeypatch.setattr("app.notification.feishu.httpx.post", fake_post)
+
+    with pytest.raises(RuntimeError, match="19024"):
+        FeishuNotifier("https://open.feishu.cn/open-apis/bot/v2/hook/example").send_text("测试")
+
+
+def test_feishu_settings_requires_https_webhook(initialized_db_session):
+    with pytest.raises(DomainError, match="HTTPS"):
+        SettingsService(initialized_db_session).update(
+            SettingsUpdate(notification_provider="feishu", notification_webhook_url="http://example.com/hook")
+        )

@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import {computed,onBeforeUnmount,onMounted,reactive,ref} from 'vue'
 import {Bell,Coins,Gauge,Landmark,RadioTower,ReceiptText,Save,Wifi} from 'lucide-vue-next'
-import {get,put} from '../api/client'
+import {get,post,put} from '../api/client'
 
 type Section='capital'|'return'|'market'|'fees'|'notification'
 const sections=[{id:'capital',code:'CAP',label:'资金与舱位',icon:Coins},{id:'return',code:'RTN',label:'返航规则',icon:Landmark},{id:'market',code:'MKT',label:'行情源',icon:RadioTower},{id:'fees',code:'FEE',label:'交易费用',icon:ReceiptText},{id:'notification',code:'COM',label:'通知',icon:Bell}] as const
-const active=ref<Section>('capital'),form=reactive<any>({}),message=ref(''),error=ref(''),saving=ref(false),snapshot=ref('')
+const active=ref<Section>('capital'),form=reactive<any>({}),message=ref(''),error=ref(''),saving=ref(false),testing=ref(false),snapshot=ref('')
 const dirty=computed(()=>snapshot.value!==''&&JSON.stringify(form)!==snapshot.value)
 async function load(){try{Object.assign(form,await get('/api/settings'));snapshot.value=JSON.stringify(form)}catch(e){error.value=(e as Error).message}}
 async function save(){saving.value=true;message.value='';error.value='';try{Object.assign(form,await put('/api/settings',form));snapshot.value=JSON.stringify(form);message.value='塔台参数已保存，新的规则将在后续监控中生效。'}catch(e){error.value=(e as Error).message}finally{saving.value=false}}
+async function testNotification(){testing.value=true;message.value='';error.value='';try{const result=await post<{message:string}>('/api/settings/notification/test');message.value=result.message}catch(e){error.value=(e as Error).message}finally{testing.value=false}}
 function beforeUnload(event:BeforeUnloadEvent){if(dirty.value){event.preventDefault();event.returnValue=''}}
 onMounted(()=>{load();window.addEventListener('beforeunload',beforeUnload)})
 onBeforeUnmount(()=>window.removeEventListener('beforeunload',beforeUnload))
@@ -48,7 +49,7 @@ onBeforeUnmount(()=>window.removeEventListener('beforeunload',beforeUnload))
           <label>买入佣金率<input v-model="form.buy_commission_rate" inputmode="decimal"/></label><label>卖出佣金率<input v-model="form.sell_commission_rate" inputmode="decimal"/></label><label>最低买入佣金<div class="field-suffix"><input v-model="form.minimum_buy_commission" inputmode="decimal"/><span>元</span></div></label><label>最低卖出佣金<div class="field-suffix"><input v-model="form.minimum_sell_commission" inputmode="decimal"/><span>元</span></div></label><label>其他买入费率<input v-model="form.other_buy_fee_rate" inputmode="decimal"/></label><label>其他卖出费率<input v-model="form.other_sell_fee_rate" inputmode="decimal"/></label>
         </div>
         <div v-else class="settings-fields">
-          <label>通知方式<select v-model="form.notification_provider"><option value="none">关闭</option><option value="console">本地控制台</option><option value="feishu">飞书</option><option value="ntfy">ntfy</option></select></label><label>Webhook URL<input v-model="form.notification_webhook_url" placeholder="可留空"/></label><label>提醒冷却<div class="field-suffix"><input v-model.number="form.alert_cooldown_minutes" type="number" min="0"/><span>分钟</span></div><small>避免同一航班连续重复提醒。</small></label>
+          <label>通知方式<select v-model="form.notification_provider"><option value="none">关闭</option><option value="console">本地控制台</option><option value="feishu">飞书</option><option value="ntfy">ntfy</option></select><small>选择飞书后，将向群自定义机器人推送告警。</small></label><label>Webhook URL<input v-model="form.notification_webhook_url" type="url" placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/..."/><small>在飞书群中添加“自定义机器人”后复制其 Webhook 地址。</small></label><label>提醒冷却<div class="field-suffix"><input v-model.number="form.alert_cooldown_minutes" type="number" min="0"/><span>分钟</span></div><small>避免同一航班连续重复提醒。</small></label><label v-if="form.notification_provider==='feishu'" class="notification-test">连接测试<button type="button" class="secondary" :disabled="testing||dirty" @click="testNotification">{{testing?'发送中…':'发送测试消息'}}</button><small v-if="dirty">请先保存 Webhook 配置，再发送测试消息。</small><small v-else>测试成功后，行情告警将自动推送至该飞书群。</small></label>
         </div>
 
         <footer><span>{{dirty?'参数已修改，保存后生效':'当前参数已同步'}}</span><button class="primary" :disabled="saving||!dirty"><Save :size="15"/>{{saving?'保存中…':'保存塔台参数'}}</button></footer>

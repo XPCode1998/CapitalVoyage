@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from urllib.parse import urlparse
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -73,6 +74,10 @@ class SettingsService:
             if value not in {"none", "console", "feishu", "ntfy"}:
                 raise DomainError("INVALID_SETTINGS", "不支持的通知方式", 400)
             changes["notification_provider"] = value
+        provider = changes.get("notification_provider", settings.notification_provider)
+        webhook_url = changes.get("notification_webhook_url", settings.notification_webhook_url)
+        if provider == "feishu":
+            self._validate_feishu_webhook(webhook_url)
         self._resize_slots(settings, changes)
         before = model_snapshot(settings)
         for field, value in changes.items():
@@ -87,6 +92,12 @@ class SettingsService:
         self.session.commit()
         self.session.refresh(settings)
         return settings
+
+    @staticmethod
+    def _validate_feishu_webhook(webhook_url: str) -> None:
+        parsed = urlparse(webhook_url.strip())
+        if parsed.scheme != "https" or not parsed.netloc:
+            raise DomainError("INVALID_SETTINGS", "飞书 Webhook 必须是完整的 HTTPS 地址", 400)
 
     def _resize_slots(self, settings: AppSettings, changes: dict) -> None:
         new_count = int(changes.get("slot_count", settings.slot_count))
