@@ -7,10 +7,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.alert.models import AlertEvent
+from app.calendar.service import TradingCalendar
 from app.core.enums import AlertEventType, RuntimeState
 from app.core.time import now_shanghai
 from app.notification.base import Notifier
+from app.notification.payload import AlertNotification
+from app.return_engine.models import RuntimeResult
 from app.return_engine.monitor import MonitorEvaluation, MonitorState
+from app.voyage.models import Voyage
 
 
 logger = logging.getLogger(__name__)
@@ -22,9 +26,15 @@ class AlertService:
         RuntimeState.READY_TO_RETURN: (AlertEventType.READY_TO_RETURN, timedelta(minutes=1)),
     }
 
-    def __init__(self, session: Session, notifier: Notifier):
+    def __init__(
+        self,
+        session: Session,
+        notifier: Notifier,
+        trading_calendar: TradingCalendar | None = None,
+    ):
         self.session = session
         self.notifier = notifier
+        self.trading_calendar = trading_calendar or TradingCalendar()
 
     def process(self, evaluation: MonitorEvaluation, *, now: datetime | None = None) -> list[AlertEvent]:
         event_types = self._transitions(evaluation.previous_state, evaluation.state)
@@ -37,11 +47,27 @@ class AlertService:
         ) for event_type in event_types]
         if events:
             self.session.add_all(events)
-        notification = self._notification_for(evaluation.voyage_id, evaluation.state, events, observed)
+        # Alert events are retained outside the session for auditability, but
+        # outbound notifications must never disturb users while the SSE market
+        # is closed (including the midday break and exchange holidays).
+        notification = None
+        if self.trading_calendar.is_market_open(observed):
+            notification = self._notification_for(evaluation.voyage_id, evaluation.state, events, observed)
+        else:
+            logger.debug(
+                "notification suppressed outside market session: voyage=%s state=%s",
+                evaluation.voyage_id,
+                evaluation.state.value,
+            )
         if notification is not None:
             self.session.flush()
             try:
-                self.notifier.send(notification)
+                outbound = (
+                    self._notification_payload(notification, evaluation.runtime)
+                    if evaluation.runtime is not None
+                    else notification
+                )
+                self.notifier.send(outbound)
                 notification.notified_at = observed
                 if monitor is not None:
                     monitor.last_notification_at = observed
@@ -92,6 +118,59 @@ class AlertService:
         self.session.add(periodic)
         events.append(periodic)
         return periodic
+
+    def _notification_payload(
+        self,
+        event: AlertEvent,
+        runtime: RuntimeResult | None,
+    ) -> AlertNotification:
+        """Build a rich outbound payload without storing volatile quotes."""
+        if runtime is None:
+            raise ValueError("notifiable return alert requires runtime data")
+        voyage = self.session.get(Voyage, event.voyage_id)
+        if voyage is None:  # defensive; the event has a foreign-key reference
+            raise LookupError(f"voyage {event.voyage_id} does not exist")
+        monitor = self.session.get(MonitorState, voyage.id)
+        ready = event.event_type == AlertEventType.READY_TO_RETURN.value
+        delta = runtime.net_return - runtime.target_return
+        if ready:
+            message = (
+                f"航次 {voyage.voyage_no}（{voyage.symbol} {voyage.security.name}）可返航："
+                f"当前净收益 {self._format_percent(runtime.net_return)}，"
+                f"超过目标 {self._format_points(delta)}。"
+            )
+            interval_minutes = 1
+        else:
+            message = (
+                f"航次 {voyage.voyage_no}（{voyage.symbol} {voyage.security.name}）接近返航："
+                f"当前净收益 {self._format_percent(runtime.net_return)}，"
+                f"距目标还差 {self._format_points(runtime.distance_to_target)}。"
+            )
+            interval_minutes = 5
+        return AlertNotification(
+            event_type=event.event_type,
+            message=message,
+            voyage_no=voyage.voyage_no,
+            symbol=voyage.symbol,
+            security_name=voyage.security.name,
+            slot_no=voyage.slot.slot_no,
+            net_return=runtime.net_return,
+            target_return=runtime.target_return,
+            distance_to_target=runtime.distance_to_target,
+            monitor_price=runtime.monitor_price,
+            target_price=runtime.target_price,
+            remaining_quantity=runtime.remaining_quantity,
+            quote_time=monitor.last_quote_time if monitor else None,
+            interval_minutes=interval_minutes,
+        )
+
+    @staticmethod
+    def _format_percent(value) -> str:
+        return f"{value * 100:+.2f}%"
+
+    @staticmethod
+    def _format_points(value) -> str:
+        return f"{value * 100:.2f}pp"
 
     @staticmethod
     def _transitions(old: RuntimeState | None, new: RuntimeState) -> list[AlertEventType]:

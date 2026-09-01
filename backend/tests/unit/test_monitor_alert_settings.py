@@ -17,6 +17,7 @@ from app.market.cache import QuoteCache
 from app.market.models import Quote
 from app.notification.base import Notifier
 from app.notification.feishu import FeishuNotifier
+from app.notification.payload import AlertNotification
 from app.return_engine.engine import ReturnEngine
 from app.return_engine.fee import FeeCalculator
 from app.return_engine.models import FeeConfig
@@ -128,6 +129,34 @@ def test_alert_only_notifies_near_and_ready_on_their_own_intervals(initialized_d
     assert recorder.events == sent_before_loss
 
 
+def test_alert_notifications_are_suppressed_until_market_reopens(initialized_db_session):
+    v = voyage(initialized_db_session)
+    state = MonitorState(voyage_id=v.id, runtime_state=RuntimeState.IN_FLIGHT.value, updated_at=NOW)
+    initialized_db_session.add(state); initialized_db_session.commit()
+    recorder = Recorder(); service = AlertService(initialized_db_session, recorder)
+
+    # The lunchtime break is not a trading session: retain the state transition
+    # for audit, but do not create a periodic notification or call the notifier.
+    lunch = datetime(2026, 8, 31, 12, 0, tzinfo=TZ)
+    entered = service.process(
+        MonitorEvaluation(v.id, RuntimeState.IN_FLIGHT, RuntimeState.NEAR_RETURN, None),
+        now=lunch,
+    )
+    assert [event.event_type for event in entered] == [AlertEventType.NEAR_RETURN_ENTERED.value]
+    assert entered[0].notified_at is None
+    assert recorder.events == []
+
+    # The same state is sent once the afternoon session has reopened.
+    afternoon = datetime(2026, 8, 31, 13, 1, tzinfo=TZ)
+    resumed = service.process(
+        MonitorEvaluation(v.id, RuntimeState.NEAR_RETURN, RuntimeState.NEAR_RETURN, None),
+        now=afternoon,
+    )
+    assert [event.event_type for event in resumed] == [AlertEventType.NEAR_RETURN_ENTERED.value]
+    assert recorder.events == [AlertEventType.NEAR_RETURN_ENTERED.value]
+    assert resumed[0].notified_at == afternoon
+
+
 def test_settings_resize_slots_and_update_fee_config(initialized_db_session):
     service = SettingsService(initialized_db_session)
     updated = service.update(SettingsUpdate(slot_count=12, default_slot_amount=Decimal("40000"), sell_commission_rate=Decimal("0.001"), return_price_mode="LAST"))
@@ -159,6 +188,46 @@ def test_feishu_notifier_rejects_business_error_in_success_response(monkeypatch)
 
     with pytest.raises(RuntimeError, match="19024"):
         FeishuNotifier("https://open.feishu.cn/open-apis/bot/v2/hook/example").send_text("测试")
+
+
+def test_feishu_notifier_sends_a_ready_to_return_card(monkeypatch):
+    captured = {}
+
+    def fake_post(*_args, **kwargs):
+        captured.update(kwargs["json"])
+        return httpx.Response(
+            200,
+            json={"code": 0},
+            request=httpx.Request("POST", "https://open.feishu.cn/open-apis/bot/v2/hook/example"),
+        )
+
+    monkeypatch.setattr("app.notification.feishu.httpx.post", fake_post)
+    FeishuNotifier("https://open.feishu.cn/open-apis/bot/v2/hook/example").send(
+        AlertNotification(
+            event_type=AlertEventType.READY_TO_RETURN.value,
+            message="unused by Feishu cards",
+            voyage_no="QC-0001",
+            symbol="510300",
+            security_name="沪深300ETF",
+            slot_no=3,
+            net_return=Decimal("0.0214"),
+            target_return=Decimal("0.0200"),
+            distance_to_target=Decimal("0"),
+            monitor_price=Decimal("4.092"),
+            target_price=Decimal("4.080"),
+            remaining_quantity=12500,
+            quote_time=NOW,
+            interval_minutes=1,
+        )
+    )
+
+    assert captured["msg_type"] == "interactive"
+    assert captured["card"]["header"]["template"] == "green"
+    assert captured["card"]["header"]["title"]["content"] == "可返航 · READY TO RETURN"
+    fields = captured["card"]["elements"][2]["fields"]
+    assert "+2.14%" in fields[0]["text"]["content"]
+    assert "+0.14pp" in fields[2]["text"]["content"]
+    assert "12,500 份" in fields[3]["text"]["content"]
 
 
 def test_feishu_settings_requires_https_webhook(initialized_db_session):

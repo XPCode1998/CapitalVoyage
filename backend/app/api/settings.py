@@ -32,7 +32,7 @@ def test_feishu_notification(db: Session = Depends(get_db)):
         raise DomainError("NOTIFICATION_NOT_CONFIGURED", "请先保存飞书 Webhook 配置", 400)
     try:
         FeishuNotifier(settings.notification_webhook_url).send_text(
-            "飞书通知测试成功。后续将在接近目标、达到返航条件、目标失效、行情异常和长航程时推送提醒。"
+            "飞书通知测试成功。交易时段内，接近返航将每 5 分钟更新；可返航将每 1 分钟更新。"
         )
     except Exception as exc:
         raise DomainError("NOTIFICATION_DELIVERY_FAILED", f"飞书测试消息发送失败：{exc}", 502) from exc
