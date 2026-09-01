@@ -7,6 +7,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEPLOY_USER="${DEPLOY_USER:-capitalvoyage}"
 SERVICE_NAME="${SERVICE_NAME:-capitalvoyage.service}"
 BRANCH="${BRANCH:-main}"
+FETCH_TIMEOUT_SECONDS="${FETCH_TIMEOUT_SECONDS:-60}"
 VENV_PIP="$ROOT_DIR/.venv/bin/pip"
 
 log() { printf '\033[1;34m[CapitalVoyage Update]\033[0m %s\n' "$*"; }
@@ -24,7 +25,9 @@ fi
 
 before_commit="$(run_as_deploy git rev-parse HEAD)"
 log "检查 origin/${BRANCH}…"
-run_as_deploy git fetch origin "$BRANCH"
+if ! timeout "${FETCH_TIMEOUT_SECONDS}s" runuser -u "$DEPLOY_USER" -- env GIT_TERMINAL_PROMPT=0 git fetch origin "$BRANCH"; then
+  fail "Git 拉取失败或超过 ${FETCH_TIMEOUT_SECONDS} 秒；请检查服务器到 GitHub 的网络与远程仓库权限。"
+fi
 target_commit="$(run_as_deploy git rev-parse "origin/${BRANCH}")"
 
 if [[ "$before_commit" == "$target_commit" ]]; then
