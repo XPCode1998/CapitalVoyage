@@ -69,6 +69,21 @@ npm run dev
 
 脚本会复用现有 `code_env`，按需安装缺失依赖，同时启动后端 `8000` 和前端 `5173`；按 `Ctrl+C` 会同时停止两个服务。也可以通过环境变量覆盖端口，例如 `BACKEND_PORT=8100 FRONTEND_PORT=5174 ./start.sh`。
 
+## 服务器更新
+
+生产服务器使用 systemd 服务 `capitalvoyage.service` 与 Nginx。推送到 `main` 后，以具备 root 权限的账号登录服务器并执行：
+
+```bash
+cd /srv/capitalvoyage
+bash scripts/update-server.sh
+```
+
+脚本会拒绝覆盖服务器上已跟踪的本地改动，随后快速拉取 `origin/main`、按需更新依赖、构建前端、重启 API，并等待健康检查通过。若需要额外跑后端测试：
+
+```bash
+RUN_TESTS=1 bash scripts/update-server.sh
+```
+
 ## 测试与构建
 
 ```bash
