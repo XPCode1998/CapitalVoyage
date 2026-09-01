@@ -41,7 +41,7 @@ class RuntimeContainer:
             monitor = MonitorService(session, self.quote_cache, engine, price_mode=settings.return_price_mode)
             evaluations = monitor.evaluate_all(commit=False)
             notifier = self._notifier(settings.notification_provider, settings.notification_webhook_url)
-            alert = AlertService(session, notifier, cooldown_minutes=settings.alert_cooldown_minutes)
+            alert = AlertService(session, notifier)
             for evaluation in evaluations:
                 alert.process(evaluation)
             calendar = TradingCalendar()

@@ -99,23 +99,33 @@ class Recorder(Notifier):
     def send(self, event): self.events.append(event.event_type)
 
 
-def test_alert_transitions_deduplicate_and_apply_cooldown(initialized_db_session):
+def test_alert_only_notifies_near_and_ready_on_their_own_intervals(initialized_db_session):
     v = voyage(initialized_db_session)
     state = MonitorState(voyage_id=v.id, runtime_state=RuntimeState.IN_FLIGHT.value, updated_at=NOW)
     initialized_db_session.add(state); initialized_db_session.commit()
-    recorder = Recorder(); service = AlertService(initialized_db_session, recorder, cooldown_minutes=30)
+    recorder = Recorder(); service = AlertService(initialized_db_session, recorder)
 
     near = MonitorEvaluation(v.id, RuntimeState.IN_FLIGHT, RuntimeState.NEAR_RETURN, None)
     assert [e.event_type for e in service.process(near, now=NOW)] == [AlertEventType.NEAR_RETURN_ENTERED.value]
     assert recorder.events == [AlertEventType.NEAR_RETURN_ENTERED.value]
-    assert service.process(MonitorEvaluation(v.id, RuntimeState.NEAR_RETURN, RuntimeState.NEAR_RETURN, None), now=NOW + timedelta(minutes=1)) == []
+    unchanged_near = MonitorEvaluation(v.id, RuntimeState.NEAR_RETURN, RuntimeState.NEAR_RETURN, None)
+    assert service.process(unchanged_near, now=NOW + timedelta(minutes=4)) == []
+    assert [e.event_type for e in service.process(unchanged_near, now=NOW + timedelta(minutes=5))] == [AlertEventType.NEAR_RETURN_ENTERED.value]
+    assert recorder.events == [AlertEventType.NEAR_RETURN_ENTERED.value, AlertEventType.NEAR_RETURN_ENTERED.value]
 
-    ready = service.process(MonitorEvaluation(v.id, RuntimeState.NEAR_RETURN, RuntimeState.READY_TO_RETURN, None), now=NOW + timedelta(minutes=2))
-    assert ready[0].notified_at is None
-    assert recorder.events == [AlertEventType.NEAR_RETURN_ENTERED.value]
-    lost = service.process(MonitorEvaluation(v.id, RuntimeState.READY_TO_RETURN, RuntimeState.IN_FLIGHT, None), now=NOW + timedelta(minutes=31))
+    ready = service.process(MonitorEvaluation(v.id, RuntimeState.NEAR_RETURN, RuntimeState.READY_TO_RETURN, None), now=NOW + timedelta(minutes=6))
+    assert [event.event_type for event in ready] == [AlertEventType.READY_TO_RETURN.value]
+    assert recorder.events[-1] == AlertEventType.READY_TO_RETURN.value
+    unchanged_ready = MonitorEvaluation(v.id, RuntimeState.READY_TO_RETURN, RuntimeState.READY_TO_RETURN, None)
+    assert service.process(unchanged_ready, now=NOW + timedelta(minutes=6, seconds=30)) == []
+    assert [e.event_type for e in service.process(unchanged_ready, now=NOW + timedelta(minutes=7))] == [AlertEventType.READY_TO_RETURN.value]
+    assert recorder.events.count(AlertEventType.READY_TO_RETURN.value) == 2
+
+    sent_before_loss = list(recorder.events)
+    lost = service.process(MonitorEvaluation(v.id, RuntimeState.READY_TO_RETURN, RuntimeState.IN_FLIGHT, None), now=NOW + timedelta(minutes=8))
     assert lost[0].event_type == AlertEventType.TARGET_LOST.value
-    assert recorder.events[-1] == AlertEventType.TARGET_LOST.value
+    assert lost[0].notified_at is None
+    assert recorder.events == sent_before_loss
 
 
 def test_settings_resize_slots_and_update_fee_config(initialized_db_session):
@@ -129,11 +139,12 @@ def test_settings_resize_slots_and_update_fee_config(initialized_db_session):
 
 def test_long_voyage_alert_is_emitted_once(initialized_db_session):
     v = voyage(initialized_db_session)
-    recorder = Recorder(); service = AlertService(initialized_db_session, recorder, cooldown_minutes=0)
+    recorder = Recorder(); service = AlertService(initialized_db_session, recorder)
     first = service.process_long_voyage(v.id, 10, 10, now=NOW)
     second = service.process_long_voyage(v.id, 11, 10, now=NOW + timedelta(days=1))
     assert first is not None and first.event_type == AlertEventType.LONG_VOYAGE.value
     assert second is None
+    assert recorder.events == []
 
 
 def test_feishu_notifier_rejects_business_error_in_success_response(monkeypatch):

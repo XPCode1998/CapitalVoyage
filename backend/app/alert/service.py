@@ -17,15 +17,17 @@ logger = logging.getLogger(__name__)
 
 
 class AlertService:
-    def __init__(self, session: Session, notifier: Notifier, *, cooldown_minutes: int = 30):
+    NOTIFICATION_INTERVALS = {
+        RuntimeState.NEAR_RETURN: (AlertEventType.NEAR_RETURN_ENTERED, timedelta(minutes=5)),
+        RuntimeState.READY_TO_RETURN: (AlertEventType.READY_TO_RETURN, timedelta(minutes=1)),
+    }
+
+    def __init__(self, session: Session, notifier: Notifier):
         self.session = session
         self.notifier = notifier
-        self.cooldown = timedelta(minutes=cooldown_minutes)
 
     def process(self, evaluation: MonitorEvaluation, *, now: datetime | None = None) -> list[AlertEvent]:
         event_types = self._transitions(evaluation.previous_state, evaluation.state)
-        if not event_types:
-            return []
         observed = now or now_shanghai()
         monitor = self.session.get(MonitorState, evaluation.voyage_id)
         events = [AlertEvent(
@@ -33,21 +35,63 @@ class AlertService:
             from_state=evaluation.previous_state.value if evaluation.previous_state else None,
             to_state=evaluation.state.value, message=f"航次 {evaluation.voyage_id}: {event_type.value}", created_at=observed,
         ) for event_type in event_types]
-        self.session.add_all(events)
-        allowed = monitor is None or monitor.last_notification_at is None or observed - monitor.last_notification_at >= self.cooldown
-        if allowed:
+        if events:
+            self.session.add_all(events)
+        notification = self._notification_for(evaluation.voyage_id, evaluation.state, events, observed)
+        if notification is not None:
             self.session.flush()
-            # A target/ready/lost transition is more actionable than a simultaneous
-            # quote recovery; persist both but send only the highest-priority event.
-            priority = {AlertEventType.READY_TO_RETURN.value: 6, AlertEventType.TARGET_REACHED.value: 5, AlertEventType.TARGET_LOST.value: 4, AlertEventType.NEAR_RETURN_ENTERED.value: 3, AlertEventType.QUOTE_STALE.value: 2, AlertEventType.QUOTE_RECOVERED.value: 1}
-            event = max(events, key=lambda item: priority.get(item.event_type, 0))
             try:
-                self.notifier.send(event); event.notified_at = observed
-                if monitor is not None: monitor.last_notification_at = observed
+                self.notifier.send(notification)
+                notification.notified_at = observed
+                if monitor is not None:
+                    monitor.last_notification_at = observed
             except Exception:
-                logger.exception("notification delivery failed for alert %s", event.id)
+                logger.exception("notification delivery failed for alert %s", notification.id)
         self.session.flush()
         return events
+
+    def _notification_for(
+        self,
+        voyage_id: int,
+        state: RuntimeState,
+        events: list[AlertEvent],
+        observed: datetime,
+    ) -> AlertEvent | None:
+        """Return the only event types that may leave the application.
+
+        A new state entry is sent immediately; remaining in the same state emits
+        another alert only after that state type's own interval has elapsed.
+        """
+        schedule = self.NOTIFICATION_INTERVALS.get(state)
+        if schedule is None:
+            return None
+        event_type, interval = schedule
+        entered = next((event for event in events if event.event_type == event_type.value), None)
+        if entered is not None:
+            return entered
+        latest = self.session.scalar(
+            select(AlertEvent.notified_at)
+            .where(
+                AlertEvent.voyage_id == voyage_id,
+                AlertEvent.event_type == event_type.value,
+                AlertEvent.notified_at.is_not(None),
+            )
+            .order_by(AlertEvent.notified_at.desc())
+            .limit(1)
+        )
+        if latest is not None and observed - latest < interval:
+            return None
+        periodic = AlertEvent(
+            voyage_id=voyage_id,
+            event_type=event_type.value,
+            from_state=state.value,
+            to_state=state.value,
+            message=f"航次 {voyage_id}: {event_type.value}",
+            created_at=observed,
+        )
+        self.session.add(periodic)
+        events.append(periodic)
+        return periodic
 
     @staticmethod
     def _transitions(old: RuntimeState | None, new: RuntimeState) -> list[AlertEventType]:
@@ -79,12 +123,4 @@ class AlertService:
         observed = now or now_shanghai()
         event = AlertEvent(voyage_id=voyage_id, event_type=AlertEventType.LONG_VOYAGE.value, from_state=None, to_state="LONG_VOYAGE", message=f"航次 {voyage_id} 已在航 {trading_days} 个交易日", created_at=observed)
         self.session.add(event); self.session.flush()
-        monitor = self.session.get(MonitorState, voyage_id)
-        allowed = monitor is None or monitor.last_notification_at is None or observed - monitor.last_notification_at >= self.cooldown
-        if allowed:
-            try:
-                self.notifier.send(event); event.notified_at = observed
-                if monitor is not None: monitor.last_notification_at = observed
-            except Exception:
-                logger.exception("notification delivery failed for long-voyage alert %s", event.id)
         return event
