@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import {computed} from 'vue'
+import {useRouter} from 'vue-router'
 import {ChevronRight,Info,Plane} from 'lucide-vue-next'
 import type {Dashboard} from '../../types'
 
 const props=defineProps<{capital:Dashboard['capital'];routes:Dashboard['routes'];availableSlots:number}>()
+const router=useRouter()
 const total=computed(()=>Number(props.capital.total)||0)
 const available=computed(()=>Number(props.capital.available)||0)
 const inFlight=computed(()=>Number(props.capital.in_flight)||0)
@@ -56,11 +58,11 @@ const compositionRing=computed(()=>{const cruisingEnd=cruisingPercent.value,appr
     <div class="ready-section">
       <header><div><h3>待返航</h3></div></header>
       <div v-if="readyRoutes.length" class="ready-list">
-        <div v-for="route in readyRoutes" :key="route.id" class="ready-ticket">
+        <button v-for="route in readyRoutes" :key="route.id" type="button" class="ready-ticket" :aria-label="`前往返航中心处理 ${route.voyage_no}`" @click="router.push('/returns')">
           <span class="ready-icon"><Plane :size="13"/></span>
           <div><b>{{route.voyage_no}}</b><small>{{route.name}}｜可售金额：{{currency(Number(route.monitor_price||0)*route.remaining_quantity)}}</small></div>
           <strong>{{number(route.remaining_quantity)}}<small>份</small></strong><ChevronRight :size="17" class="ready-arrow"/>
-        </div>
+        </button>
       </div>
     </div>
   </section>
@@ -68,6 +70,9 @@ const compositionRing=computed(()=>{const cruisingEnd=cruisingPercent.value,appr
 
 <style scoped>
 .capital-status-panel{height:100%;background:rgba(255,255,255,.94);border:1px solid #e0e7ee;border-radius:14px;padding:19px 17px;display:flex;flex-direction:column;overflow:hidden}.capital-status-panel>header{display:flex;align-items:center;gap:7px}.capital-status-panel h2{font-size:16px;margin:0;color:#263442}.capital-status-panel header svg{color:#8d99a5}.primary-ring{width:158px;height:158px;border-radius:50%;margin:18px auto 15px;display:grid;place-items:center;position:relative;transform:rotate(-12deg);box-shadow:0 10px 24px rgba(38,71,108,.06)}.primary-ring::before{content:"";position:absolute;inset:15px;border-radius:50%;background:#fff;box-shadow:inset 0 0 0 1px #edf1f5}.primary-ring::after{content:"";position:absolute;inset:27px;border:1px solid #edf1f5;border-radius:50%}.primary-ring>div{position:relative;z-index:1;text-align:center;transform:rotate(12deg)}.primary-ring strong,.primary-ring span{display:block}.primary-ring strong{font-size:20px;letter-spacing:-.04em}.primary-ring span{font-size:10px;color:#718091;margin-top:3px}.allocation-legend{display:grid;gap:11px;padding:3px 2px 15px;border-bottom:1px solid #e8edf2}.allocation-legend article{display:grid;grid-template-columns:7px 1fr auto 28px;align-items:start;gap:7px}.allocation-legend i{width:7px;height:7px;border-radius:50%;margin-top:3px}.blue{background:#2f72df}.gray{background:#c2ccd7}.allocation-legend div{display:grid;gap:2px}.allocation-legend span{font-size:10px;color:#617080}.allocation-legend small{font-size:8px;color:#9aa4ae}.allocation-legend strong{font-size:10px}.allocation-legend em{font-size:9px;color:#7f8a96;font-style:normal}.ready-section{padding-top:14px;min-height:0;display:flex;flex:1;flex-direction:column}.ready-section>header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}.ready-section h3{font-size:12px;margin:0 0 3px}.ready-section header span{font-size:8px;color:#929da8}.ready-section header>b{font-size:16px;color:#159568;letter-spacing:-.03em}.ready-list{display:grid;gap:6px;margin-top:10px;overflow-y:auto;padding-right:3px;scrollbar-width:thin;scrollbar-color:#cbd8d2 transparent}.ready-list article{display:grid;grid-template-columns:27px 1fr auto;align-items:center;gap:7px;padding:7px;background:linear-gradient(135deg,#f8fbfd,#f3f8f6);border:1px solid #e5ede9;border-radius:9px}.ready-icon{width:27px;height:27px;border-radius:50%;display:grid;place-items:center;color:#179568;background:#e7f6ef}.ready-list article div{display:grid;gap:2px;min-width:0}.ready-list article div>b{font-size:9px}.ready-list article div>small{font-size:8px;color:#89949f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ready-list article>strong{font-size:10px;color:#2e3e49}.ready-list article>strong small{font-size:7px;color:#9aa4ae;margin-left:2px}.ready-empty{margin:11px 0;padding:18px 8px;text-align:center;border:1px dashed #dfe7e3;border-radius:9px;color:#96a19c;font-size:9px;background:#f9fbfa}@media(max-width:1050px){.capital-status-panel{display:none}}
+</style>
+<style scoped>
+.ready-ticket{color:inherit;text-decoration:none}.ready-ticket:hover,.ready-ticket:focus-visible{border-color:#9bcdb3;box-shadow:0 8px 20px rgba(30,158,99,.11);outline:0}
 </style>
 <style scoped>
 .capital-status-panel{padding:22px 21px;border-color:#d8e2ec;box-shadow:0 10px 32px rgba(40,62,85,.045)}.capital-status-panel>header{justify-content:space-between}.capital-status-panel>header>div{display:grid;gap:3px}.capital-status-panel>header small{color:#8c99a7;font-size:9px;font-weight:750;letter-spacing:.13em}.capital-status-panel h2{font-size:18px}.primary-ring{width:176px;height:176px;margin:20px auto 18px}.primary-ring::before{inset:16px}.primary-ring::after{inset:29px}.primary-ring strong{font-size:23px}.primary-ring span{font-size:11px}.allocation-legend{gap:13px;padding:5px 2px 18px}.allocation-legend article{grid-template-columns:8px 1fr auto 32px;gap:9px}.allocation-legend i{width:8px;height:8px;margin-top:4px}.allocation-legend span{font-size:12px}.allocation-legend small{font-size:10px}.allocation-legend strong{font-size:12px}.allocation-legend em{font-size:10px}.composition{padding:16px 0 17px}.composition h3{margin-bottom:13px;font-size:13px}.composition-body{gap:17px}.small-ring{width:100px;height:100px;flex-basis:100px}.small-ring::before{inset:11px}.small-ring strong{font-size:12px}.small-ring span{font-size:9px}.composition-legend{gap:9px}.composition-legend article{grid-template-columns:7px minmax(0,1fr) auto;gap:2px 7px}.composition-legend i{width:7px;height:7px}.composition-legend span{font-size:10px}.composition-legend strong{font-size:11px}.composition-legend em{font-size:10px}.ready-section{padding-top:15px}.ready-section h3{font-size:14px}.ready-section header span{font-size:10px}.ready-section header>b{font-size:19px}.ready-list{gap:8px;margin-top:12px}.ready-list button{grid-template-columns:34px 1fr auto;gap:9px;min-height:52px;padding:8px 10px;border-radius:10px}.ready-icon{width:32px;height:32px}.ready-list button div>b{font-size:11px}.ready-list button div>small{font-size:9px}.ready-list button>strong{font-size:12px}.ready-list button>strong small{font-size:9px}

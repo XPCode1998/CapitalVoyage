@@ -35,8 +35,8 @@ onUnmounted(()=>{document.body.classList.remove('dashboard-lock');if(refreshTime
 </template>
 
 <style scoped>
-.dashboard-page{width:100%;max-width:none;height:100dvh;display:flex;flex-direction:column;padding:18px 22px;overflow:hidden}.dashboard-core{min-height:0;display:grid;flex:1;grid-template-columns:310px minmax(0,1fr);gap:12px}.dashboard-core>:deep(.flight-monitor){height:100%;margin:0}@media(max-width:1320px){.dashboard-core{grid-template-columns:290px minmax(0,1fr)}}@media(max-width:1120px){.dashboard-core{grid-template-columns:270px minmax(0,1fr)}}@media(max-width:1050px){.dashboard-core{display:block}.dashboard-core>:deep(.flight-monitor){height:100%}}@media(max-width:760px){.dashboard-page{height:auto;min-height:calc(100dvh - 96px);padding:14px;overflow:visible}.dashboard-core{height:auto;min-height:0}}
+.dashboard-page{width:100%;max-width:none;height:100dvh;display:flex;flex-direction:column;padding:18px 22px;overflow:hidden}.dashboard-core{min-height:0;display:grid;flex:1;grid-template-columns:310px minmax(0,1fr);gap:12px}.dashboard-core>:deep(.flight-monitor){height:100%;margin:0}@media(max-width:1320px){.dashboard-core{grid-template-columns:290px minmax(0,1fr)}}@media(max-width:1120px){.dashboard-core{grid-template-columns:270px minmax(0,1fr)}}@media(max-width:1050px){.dashboard-core{display:block}.dashboard-core>:deep(.flight-monitor){height:100%}}@media(max-width:900px){.dashboard-page{height:auto;min-height:calc(100dvh - 96px);padding:14px;overflow:visible}.dashboard-core{height:auto;min-height:0}}
 </style>
 <style>
-body.dashboard-lock{overflow:hidden}@media(max-width:760px){body.dashboard-lock{overflow:auto}}
+body.dashboard-lock{overflow:hidden}@media(max-width:900px){body.dashboard-lock{overflow:auto}}
 </style>

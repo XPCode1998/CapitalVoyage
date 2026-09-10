@@ -22,6 +22,7 @@ const error=ref('')
 const message=ref('')
 const modalError=ref('')
 const saving=ref(false)
+const loading=ref(true)
 const security=ref<{symbol:string;name:string;market:string;settlement_mode:string;last_price:string|null}|null>(null)
 const securityLoading=ref(false)
 let lookupTimer:number|undefined
@@ -37,19 +38,19 @@ function datetimeLocal(value:string|Date=new Date()){
 }
 
 function targetDecimal(value:string){return String(Number(value||0)/100)}
-async function load(){try{slots.value=await get<Slot[]>('/api/slots');const requested=Number(route.query.voyage);if(requested){selected.value=slots.value.map(item=>item.voyage).find(item=>item?.id===requested)||null;router.replace({query:{}})}}catch(e){error.value=(e as Error).message}}
+async function load(){loading.value=true;error.value='';try{slots.value=await get<Slot[]>('/api/slots');const requested=Number(route.query.voyage);if(requested){selected.value=slots.value.map(item=>item.voyage).find(item=>item?.id===requested)||null;router.replace({query:{}})}}catch(e){error.value=(e as Error).message}finally{loading.value=false}}
 async function lookupSecurity(){const symbol=form.symbol.trim();security.value=null;if(!/^\d{6}$/.test(symbol))return;securityLoading.value=true;try{const results=await get<Array<{symbol:string;name:string;market:string;settlement_mode:string;last_price:string|null}>>(`/api/securities/search?q=${encodeURIComponent(symbol)}`);security.value=results.find(item=>item.symbol===symbol)||null}catch{security.value=null}finally{securityLoading.value=false}}
 function scheduleLookup(){if(lookupTimer)window.clearTimeout(lookupTimer);lookupTimer=window.setTimeout(lookupSecurity,320)}
 async function updatePreview(){if(!form.entry_price||!form.entry_quantity)return;try{preview.value=await post('/api/voyages/preview',{entry_price:form.entry_price,entry_quantity:form.entry_quantity,entry_fee:form.entry_fee,target_return:targetDecimal(form.target_return_percent)})}catch{preview.value=null}}
-function validateCreate(){if(!/^\d{6}$/.test(form.symbol))return'请输入 6 位 ETF 代码';if(Number(form.target_return_percent)<=0)return'目标收益率必须大于 0';const cost=Number(form.entry_price)*Number(form.entry_quantity)+Number(form.entry_fee||0);if(creating.value&&cost>Number(creating.value.budget_amount))return`实际投入不能超过舱位预算 ${money(creating.value.budget_amount)}`;if(new Date(form.entry_time)>new Date())return'起航时间不能晚于当前时间';return''}
-async function create(){if(!creating.value)return;modalError.value=validateCreate();if(modalError.value)return;saving.value=true;error.value='';try{await post('/api/voyages',{slot_id:creating.value.id,symbol:form.symbol,entry_time:new Date(form.entry_time).toISOString(),entry_price:form.entry_price,entry_quantity:form.entry_quantity,entry_fee:form.entry_fee,target_return:targetDecimal(form.target_return_percent)});message.value='新航班已签发并进入财富航线';creating.value=null;await load()}catch(e){modalError.value=(e as Error).message}finally{saving.value=false}}
+function validateCreate(){if(!/^\d{6}$/.test(form.symbol))return'请输入 6 位 ETF 代码';if(Number(form.entry_price)<=0||Number(form.entry_quantity)<=0||Number(form.entry_fee)<0)return'请检查起航价格、份额和费用';if(Number(form.target_return_percent)<=0)return'目标收益率必须大于 0';const cost=Number(form.entry_price)*Number(form.entry_quantity)+Number(form.entry_fee||0);if(!Number.isFinite(cost))return'请输入有效的起航数据';if(creating.value&&cost>Number(creating.value.budget_amount))return`实际投入不能超过舱位预算 ${money(creating.value.budget_amount)}`;if(new Date(form.entry_time)>new Date())return'起航时间不能晚于当前时间';return''}
+async function create(){if(!creating.value||saving.value)return;modalError.value=validateCreate();if(modalError.value)return;saving.value=true;error.value='';try{await post('/api/voyages',{slot_id:creating.value.id,symbol:form.symbol,entry_time:new Date(form.entry_time).toISOString(),entry_price:form.entry_price,entry_quantity:form.entry_quantity,entry_fee:form.entry_fee,target_return:targetDecimal(form.target_return_percent)});message.value='新航班已签发并进入财富航线';creating.value=null;await load()}catch(e){modalError.value=(e as Error).message}finally{saving.value=false}}
 function openEdit(voyage:Voyage){Object.assign(editForm,{entry_time:datetimeLocal(voyage.entry_time),entry_price:voyage.entry_price,entry_quantity:voyage.entry_quantity,entry_fee:voyage.entry_fee,target_return_percent:(Number(voyage.target_return)*100).toFixed(2)});editing.value=voyage;selected.value=null;modalError.value=''}
 function openReturn(voyage:Voyage){Object.assign(exitForm,{exit_time:datetimeLocal(),exit_price:voyage.monitor_price||'',total_fee:'0'});returning.value=voyage;selected.value=null;modalError.value=''}
 function openCancel(voyage:Voyage){cancelling.value=voyage;selected.value=null;modalError.value=''}
 function canReturn(voyage:Voyage){return new Date()>=new Date(voyage.sellable_at)}
-async function saveEdit(){if(!editing.value)return;if(Number(editForm.target_return_percent)<=0){modalError.value='目标收益率必须大于 0';return}saving.value=true;modalError.value='';try{const updated=await patch<Voyage>(`/api/voyages/${editing.value.id}`,{entry_time:new Date(editForm.entry_time).toISOString(),entry_price:editForm.entry_price,entry_quantity:editForm.entry_quantity,entry_fee:editForm.entry_fee,target_return:targetDecimal(editForm.target_return_percent)});message.value=`${updated.voyage_no} 已完成改签`;editing.value=null;await load()}catch(e){modalError.value=(e as Error).message}finally{saving.value=false}}
-async function submitReturn(){if(!returning.value)return;saving.value=true;modalError.value='';try{const voyage=returning.value;await post('/api/exits',{symbol:voyage.symbol,exit_time:new Date(exitForm.exit_time).toISOString(),exit_price:exitForm.exit_price,total_quantity:voyage.remaining_quantity,total_fee:exitForm.total_fee,allocations:[{voyage_id:voyage.id,quantity:voyage.remaining_quantity}]});message.value=`${voyage.voyage_no} 已返航并写入钱途记录`;returning.value=null;await load()}catch(e){modalError.value=(e as Error).message}finally{saving.value=false}}
-async function cancelVoyage(){if(!cancelling.value)return;saving.value=true;modalError.value='';try{const voyage=cancelling.value;await post(`/api/voyages/${voyage.id}/cancel`);message.value=`${voyage.voyage_no} 已取消，舱位恢复待调度`;cancelling.value=null;await load()}catch(e){modalError.value=(e as Error).message}finally{saving.value=false}}
+async function saveEdit(){if(!editing.value||saving.value)return;if(Number(editForm.entry_price)<=0||Number(editForm.entry_quantity)<=0||Number(editForm.entry_fee)<0){modalError.value='请检查起航价格、份额和费用';return}if(Number(editForm.target_return_percent)<=0){modalError.value='目标收益率必须大于 0';return}saving.value=true;modalError.value='';try{const updated=await patch<Voyage>(`/api/voyages/${editing.value.id}`,{entry_time:new Date(editForm.entry_time).toISOString(),entry_price:editForm.entry_price,entry_quantity:editForm.entry_quantity,entry_fee:editForm.entry_fee,target_return:targetDecimal(editForm.target_return_percent)});message.value=`${updated.voyage_no} 已完成改签`;editing.value=null;await load()}catch(e){modalError.value=(e as Error).message}finally{saving.value=false}}
+async function submitReturn(){if(!returning.value||saving.value)return;if(Number(exitForm.exit_price)<=0||Number(exitForm.total_fee)<0){modalError.value='请填写有效的成交价格和卖出费用';return}if(new Date(exitForm.exit_time)>new Date()){modalError.value='返航时间不能晚于当前时间';return}saving.value=true;modalError.value='';try{const voyage=returning.value;await post('/api/exits',{symbol:voyage.symbol,exit_time:new Date(exitForm.exit_time).toISOString(),exit_price:exitForm.exit_price,total_quantity:voyage.remaining_quantity,total_fee:exitForm.total_fee,allocations:[{voyage_id:voyage.id,quantity:voyage.remaining_quantity}]});message.value=`${voyage.voyage_no} 已返航并写入钱途记录`;returning.value=null;await load()}catch(e){modalError.value=(e as Error).message}finally{saving.value=false}}
+async function cancelVoyage(){if(!cancelling.value||saving.value)return;saving.value=true;modalError.value='';try{const voyage=cancelling.value;await post(`/api/voyages/${voyage.id}/cancel`);message.value=`${voyage.voyage_no} 已取消，舱位恢复待调度`;cancelling.value=null;await load()}catch(e){modalError.value=(e as Error).message}finally{saving.value=false}}
 function activateSlot(slot:Slot){if(slot.voyage)selected.value=slot.voyage;else creating.value=slot}
 
 watch(message,value=>{if(value)window.setTimeout(()=>{if(message.value===value)message.value=''},3500)})
@@ -60,11 +61,13 @@ onMounted(()=>{load();lookupSecurity()})
   <div class="page voyages-page">
     <OperationToast :message="message||error" :type="error?'error':'success'" @close="error='';message=''"/>
 
-    <section class="ticket-grid" aria-label="资金舱位">
+    <div v-if="loading" class="loading" aria-live="polite">正在读取资金舱位…</div>
+
+    <section v-else class="ticket-grid" aria-label="资金舱位">
       <SlotTicket v-for="slot in slots" :key="slot.id" :slot="slot" @activate="activateSlot"/>
     </section>
 
-    <FlightSidePanel v-if="creating" title="签发新航班" eyebrow="BOARDING ISSUANCE · 调度柜台" strip-label="DISPATCH DESK" @close="creating=null">
+    <FlightSidePanel v-if="creating" title="签发新航班" eyebrow="BOARDING ISSUANCE · 调度柜台" strip-label="DISPATCH DESK" :prevent-close="saving" @close="creating=null">
       <form id="create-flight-form" class="form-grid aviation-form drawer-form" @submit.prevent="create">
         <div class="boarding-route"><div><small>DEPARTURE / 起点</small><strong>{{form.symbol||'ETF'}}</strong><span>ETF 资金机场</span></div><div class="boarding-airway"><i></i><PlaneTakeoff :size="20"/><em>QC / NEW</em></div><div><small>DESTINATION / 目的地</small><strong>WFT</strong><span>财富自由塔台</span></div><b>{{String(creating.slot_no).padStart(2,'0')}}</b></div>
         <p class="form-section-title">01 · 航班身份与起航信息</p>
@@ -87,7 +90,7 @@ onMounted(()=>{load();lookupSecurity()})
       <template #footer><div class="side-panel-actions one"><button type="submit" form="create-flight-form" class="panel-action primary" :disabled="saving"><PlaneTakeoff :size="16"/>{{saving?'正在签发…':'签发机票并起航'}}</button></div></template>
     </FlightSidePanel>
 
-    <FlightSidePanel v-if="editing" :title="`改签 · ${editing.voyage_no}`" eyebrow="FLIGHT RESCHEDULE · 签派变更" strip-label="RESCHEDULE DESK" @close="editing=null;modalError=''">
+    <FlightSidePanel v-if="editing" :title="`改签 · ${editing.voyage_no}`" eyebrow="FLIGHT RESCHEDULE · 签派变更" strip-label="RESCHEDULE DESK" :prevent-close="saving" @close="editing=null;modalError=''">
       <form id="edit-flight-form" class="form-grid aviation-form drawer-form" @submit.prevent="saveEdit">
         <div class="boarding-route"><div><small>DEPARTURE / 起点</small><strong>{{editing.symbol}}</strong><span>{{editing.name}}</span></div><div class="boarding-airway"><i></i><PlaneTakeoff :size="20"/><em>{{editing.voyage_no}}</em></div><div><small>DESTINATION / 目的地</small><strong>WFT</strong><span>财富自由塔台</span></div><b>R</b></div>
         <p class="form-section-title">航班资料变更</p>
@@ -102,7 +105,7 @@ onMounted(()=>{load();lookupSecurity()})
       <template #footer><div class="side-panel-actions two"><button type="button" class="panel-action secondary" @click="editing=null"><ArrowLeft :size="15"/>返回</button><button type="submit" form="edit-flight-form" class="panel-action primary" :disabled="saving"><Pencil :size="15"/>{{saving?'保存中…':'确认改签'}}</button></div></template>
     </FlightSidePanel>
 
-    <FlightSidePanel v-if="returning" :title="`返航 · ${returning.voyage_no}`" eyebrow="LANDING SETTLEMENT · 到港结算" strip-label="LANDING DESK" :subtitle="`${returning.name} · ${returning.symbol}`" @close="returning=null;modalError=''">
+    <FlightSidePanel v-if="returning" :title="`返航 · ${returning.voyage_no}`" eyebrow="LANDING SETTLEMENT · 到港结算" strip-label="LANDING DESK" :subtitle="`${returning.name} · ${returning.symbol}`" :prevent-close="saving" @close="returning=null;modalError=''">
       <form id="return-flight-form" class="form-grid return-form drawer-form" @submit.prevent="submitReturn">
         <div class="boarding-route return-route"><div><small>DEPARTURE / 起点</small><strong>{{returning.symbol}}</strong><span>{{returning.name}}</span></div><div class="boarding-airway"><i></i><PlaneLanding :size="20"/><em>{{returning.voyage_no}}</em></div><div><small>ARRIVAL / 到港</small><strong>WFT</strong><span>财富自由塔台</span></div></div>
         <p v-if="modalError" class="error-banner form-alert">{{modalError}}</p>
@@ -116,7 +119,7 @@ onMounted(()=>{load();lookupSecurity()})
       <template #footer><div class="side-panel-actions two"><button type="button" class="panel-action secondary" @click="returning=null"><ArrowLeft :size="15"/>返回</button><button type="submit" form="return-flight-form" class="panel-action return" :disabled="saving"><PlaneLanding :size="16"/>{{saving?'正在归档…':'确认返航并归档'}}</button></div></template>
     </FlightSidePanel>
 
-    <AppModal v-if="cancelling" :title="`取消航班 · ${cancelling.voyage_no}`" eyebrow="VOID FLIGHT" @close="cancelling=null;modalError=''">
+    <AppModal v-if="cancelling" :title="`取消航班 · ${cancelling.voyage_no}`" eyebrow="VOID FLIGHT" :prevent-close="saving" @close="cancelling=null;modalError=''">
       <div class="cancel-confirm">
         <p v-if="modalError" class="error-banner">{{modalError}}</p>
         <strong>确认取消这趟航班？</strong>

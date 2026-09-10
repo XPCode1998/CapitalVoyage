@@ -1,5 +1,5 @@
 /* Mobile workspace: dedicated navigation, touch targets and safe-area handling. */
-@media(max-width:760px){
+@media(max-width:900px){
   html{overflow-x:hidden;background:var(--canvas-bg);-webkit-text-size-adjust:100%}
   body{min-width:320px;overflow-x:hidden;overscroll-behavior-y:none}
   .shell{display:block;min-height:100dvh;width:100%;overflow-x:clip}
@@ -93,7 +93,7 @@
   .logbook-main{grid-template-columns:1fr auto!important;gap:12px!important;min-height:0!important;padding:14px!important}
   .logbook-flight{grid-column:1}.logbook-result{grid-column:2!important;grid-row:1;text-align:right!important}
   .journey-point{grid-column:1/-1!important;padding-top:9px;border-top:1px solid var(--line-soft)}
-  .journey-point.arrival{display:none}
+  .journey-point.arrival{display:grid}
   .logbook-detail{grid-template-columns:1fr 1fr!important;gap:13px!important;margin:0 12px 12px!important;padding:13px!important}
 
   .settings-page{min-height:calc(100dvh - 64px);padding-right:10px;padding-bottom:calc(96px + env(safe-area-inset-bottom));padding-left:10px;overflow:visible!important}
@@ -113,6 +113,11 @@
   .settings-workspace>footer button{min-height:46px}
 
   .operation-toast{top:calc(66px + env(safe-area-inset-top))!important}
+}
+
+@media(max-width:900px){
+  .ticket-number small,.ticket-status,.security span,.voyage-snapshot span,.remaining>span,.ticket-footer span{font-size:10px!important}
+  .security b,.ticket-footer b,.voyage-snapshot b{font-size:12px!important}
 }
 
 @media(max-width:370px){

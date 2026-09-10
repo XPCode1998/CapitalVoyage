@@ -3,12 +3,13 @@ import {nextTick,onBeforeUnmount,onMounted,ref} from 'vue'
 import {X} from 'lucide-vue-next'
 import {lockBodyScroll,unlockBodyScroll} from '../utils/bodyScroll'
 
-withDefaults(defineProps<{title:string;eyebrow:string;subtitle?:string;stripLabel?:string}>(),{subtitle:'',stripLabel:'DISPATCH RELEASE'})
+const props=withDefaults(defineProps<{title:string;eyebrow:string;subtitle?:string;stripLabel?:string;preventClose?:boolean}>(),{subtitle:'',stripLabel:'DISPATCH RELEASE',preventClose:false})
 const emit=defineEmits<{close:[]}>()
 const panel=ref<HTMLElement|null>(null)
 let previousFocus:HTMLElement|null=null
 function focusable(){return Array.from(panel.value?.querySelectorAll<HTMLElement>('button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')||[])}
-function onKeydown(event:KeyboardEvent){if(event.key==='Escape'){emit('close');return}if(event.key!=='Tab')return;const items=focusable();if(!items.length)return;const first=items[0],last=items[items.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}}
+function close(){if(!props.preventClose)emit('close')}
+function onKeydown(event:KeyboardEvent){if(event.key==='Escape'){close();return}if(event.key!=='Tab')return;const items=focusable();if(!items.length)return;const first=items[0],last=items[items.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}}
 onMounted(()=>{previousFocus=document.activeElement as HTMLElement;document.addEventListener('keydown',onKeydown);lockBodyScroll();nextTick(()=>{(panel.value?.querySelector<HTMLElement>('[autofocus]')||focusable()[0])?.focus()})})
 onBeforeUnmount(()=>{document.removeEventListener('keydown',onKeydown);unlockBodyScroll();previousFocus?.focus()})
 </script>
@@ -16,9 +17,9 @@ onBeforeUnmount(()=>{document.removeEventListener('keydown',onKeydown);unlockBod
 <template>
   <Teleport to="body">
     <Transition name="flight-panel" appear>
-      <div class="flight-side-overlay" role="presentation" @mousedown.self="$emit('close')">
+      <div class="flight-side-overlay" role="presentation" @mousedown.self="close">
         <aside ref="panel" class="flight-side-panel" role="dialog" aria-modal="true" :aria-label="title">
-          <div class="flight-side-strip"><span>CAPITALVOYAGE · FLIGHT OPERATIONS</span><b>{{stripLabel}}</b><button type="button" aria-label="关闭" @click="$emit('close')"><X :size="18"/></button></div>
+          <div class="flight-side-strip"><span>CAPITALVOYAGE · FLIGHT OPERATIONS</span><b>{{stripLabel}}</b><button type="button" aria-label="关闭" :disabled="preventClose" @click="close"><X :size="18"/></button></div>
           <header class="flight-side-heading">
             <p>{{eyebrow}}</p>
             <div><section><h2>{{title}}</h2><span v-if="subtitle">{{subtitle}}</span></section><slot name="status"/></div>

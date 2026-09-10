@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {computed,onBeforeUnmount,onMounted,reactive,ref} from 'vue'
+import {onBeforeRouteLeave} from 'vue-router'
 import {Bell,Coins,Gauge,Landmark,RadioTower,ReceiptText,Save,Wifi} from 'lucide-vue-next'
 import {get,post,put} from '../api/client'
 
@@ -13,6 +14,7 @@ async function testNotification(){testing.value=true;message.value='';error.valu
 function beforeUnload(event:BeforeUnloadEvent){if(dirty.value){event.preventDefault();event.returnValue=''}}
 onMounted(()=>{load();window.addEventListener('beforeunload',beforeUnload)})
 onBeforeUnmount(()=>window.removeEventListener('beforeunload',beforeUnload))
+onBeforeRouteLeave(()=>!dirty.value||window.confirm('塔台参数尚未保存，确定放弃修改并离开吗？'))
 </script>
 
 <template>
@@ -23,7 +25,7 @@ onBeforeUnmount(()=>window.removeEventListener('beforeunload',beforeUnload))
       <aside class="settings-nav">
         <div class="settings-heading"><p class="section-kicker">TOWER CONTROL</p><h1>塔台参数</h1><span>控制资金舱位、返航与行情规则</span></div>
         <label class="mobile-section-select"><span>当前设置分类</span><select v-model="active" aria-label="选择设置分类"><option v-for="item in sections" :key="item.id" :value="item.id">{{item.label}} · {{item.code}}</option></select></label>
-        <nav><button v-for="(item,index) in sections" :key="item.id" :class="{active:active===item.id}" @click="active=item.id"><span>{{String(index+1).padStart(2,'0')}}</span><component :is="item.icon" :size="16"/><b>{{item.label}}</b><small>{{item.code}}</small></button></nav>
+        <nav aria-label="设置分类"><button v-for="(item,index) in sections" :key="item.id" type="button" :class="{active:active===item.id}" :aria-pressed="active===item.id" @click="active=item.id"><span>{{String(index+1).padStart(2,'0')}}</span><component :is="item.icon" :size="16"/><b>{{item.label}}</b><small>{{item.code}}</small></button></nav>
         <div class="ledger-note"><i></i><div><b>本地账本运行中</b><span>所有设置保存在本机</span></div></div>
       </aside>
 

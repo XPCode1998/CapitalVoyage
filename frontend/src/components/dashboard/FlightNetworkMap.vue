@@ -105,7 +105,7 @@ function airportName(name:string){const match=name.match(/^(.{1,10}?ETF)/i);retu
     <header class="monitor-header">
       <div><h2>财富航线 <small><i></i>实时</small></h2><p>资金航次实时运行态势</p></div>
       <div class="legend" aria-label="航班状态筛选">
-        <button v-for="chip in filterChips" :key="chip.id" type="button" :class="{active:activeFilter===chip.id}" @click="activeFilter=chip.id"><i :class="chip.id==='ALL'?'all':chip.id.toLowerCase()"></i>{{chip.label}} <b>{{chip.count}}</b></button>
+        <button v-for="chip in filterChips" :key="chip.id" type="button" :class="{active:activeFilter===chip.id}" :aria-pressed="activeFilter===chip.id" @click="activeFilter=chip.id"><i :class="chip.id==='ALL'?'all':chip.id.toLowerCase()"></i>{{chip.label}} <b>{{chip.count}}</b></button>
       </div>
     </header>
 
@@ -128,7 +128,7 @@ function airportName(name:string){const match=name.match(/^(.{1,10}?ETF)/i);retu
         <g v-for="layout in routeLayouts" :key="layout.route.id" class="route-group" :class="{muted:selectedId!==null&&selectedId!==layout.route.id}">
           <path :d="layout.path" class="route-base"/>
           <path v-if="!layout.grounded&&layout.progress>0" :d="layout.path" pathLength="100" class="route-progress" :class="{waiting:layout.route.visual_state==='WAITING_QUOTE'}" :stroke="layout.color" :stroke-dasharray="`${layout.progress*100} 100`"/>
-          <g class="plane-node" :class="{grounded:layout.grounded,selected:selectedId===layout.route.id,muted:hoveredId!==null&&hoveredId!==layout.route.id}" :transform="`translate(${layout.plane.x} ${layout.plane.y}) rotate(${layout.angle+45}) scale(1.42)`" role="button" tabindex="0" :aria-pressed="selectedId===layout.route.id" @click.stop="selectRoute(layout.route.id)" @mouseenter="hoverRoute(layout.route.id)" @mouseleave="hoverRoute(null)" @focus="hoverRoute(layout.route.id)" @blur="hoverRoute(null)" @keydown.enter="selectRoute(layout.route.id)">
+          <g class="plane-node" :class="{grounded:layout.grounded,selected:selectedId===layout.route.id,muted:hoveredId!==null&&hoveredId!==layout.route.id}" :transform="`translate(${layout.plane.x} ${layout.plane.y}) rotate(${layout.angle+45}) scale(1.42)`" role="button" tabindex="0" :aria-pressed="selectedId===layout.route.id" @click.stop="selectRoute(layout.route.id)" @mouseenter="hoverRoute(layout.route.id)" @mouseleave="hoverRoute(null)" @focus="hoverRoute(layout.route.id)" @blur="hoverRoute(null)" @keydown.enter.prevent="selectRoute(layout.route.id)" @keydown.space.prevent="selectRoute(layout.route.id)">
             <circle r="17" fill="transparent"/>
             <path transform="translate(-12 -12)" d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" :fill="layout.grounded?'#7f8a96':layout.color"/>
             <title>{{layout.route.voyage_no}} · {{layout.route.name}} · {{visualLabel(layout.route.visual_state)}}</title>
@@ -156,7 +156,7 @@ function airportName(name:string){const match=name.match(/^(.{1,10}?ETF)/i);retu
       <div v-if="hoveredLayout" class="flight-tooltip" :style="{left:`${hoveredLayout.plane.x/width*100}%`,top:`${hoveredLayout.plane.y/height*100}%`}"><b>{{hoveredLayout.route.voyage_no}}</b><span>{{hoveredLayout.route.name}}</span><small>{{visualLabel(hoveredLayout.route.visual_state)}} · {{hoveredLayout.route.net_return===null?'收益待更新':percent(hoveredLayout.route.net_return)}}</small></div>
 
       <Transition name="flight-glass">
-        <div v-if="selectedRoute" class="flight-popover" role="dialog" aria-label="航班具体信息">
+        <div v-if="selectedRoute" class="flight-popover" role="region" aria-label="航班具体信息">
           <button class="glass-close" aria-label="关闭航次详情" @click="selectedId=null"><X :size="17"/></button>
           <div class="selected-flight-strip">
             <section class="strip-identity"><span class="selected-icon"><RadioTower :size="25"/></span><div><small>选中航次 <em>SELECTED FLIGHT</em></small><strong>{{selectedRoute.voyage_no}}</strong><p>{{selectedRoute.name}}｜{{selectedRoute.symbol}}</p></div></section>
