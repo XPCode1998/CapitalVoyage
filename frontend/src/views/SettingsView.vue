@@ -3,11 +3,14 @@ import {computed,onBeforeUnmount,onMounted,reactive,ref} from 'vue'
 import {onBeforeRouteLeave} from 'vue-router'
 import {Bell,Coins,Gauge,Landmark,RadioTower,ReceiptText,Save,Wifi} from 'lucide-vue-next'
 import {get,post,put} from '../api/client'
+import OperationToast from '../components/OperationToast.vue'
 
 type Section='capital'|'return'|'market'|'fees'|'notification'
 const sections=[{id:'capital',code:'CAP',label:'资金与舱位',icon:Coins},{id:'return',code:'RTN',label:'返航规则',icon:Landmark},{id:'market',code:'MKT',label:'行情源',icon:RadioTower},{id:'fees',code:'FEE',label:'交易费用',icon:ReceiptText},{id:'notification',code:'COM',label:'通知',icon:Bell}] as const
 const active=ref<Section>('capital'),form=reactive<any>({}),message=ref(''),error=ref(''),saving=ref(false),testing=ref(false),snapshot=ref('')
 const dirty=computed(()=>snapshot.value!==''&&JSON.stringify(form)!==snapshot.value)
+const defaultTargetPercent=computed({get:()=>form.default_target_return==null?'':String(Number(form.default_target_return)*100),set:value=>{form.default_target_return=String(Number(value||0)/100)}})
+const nearReturnPercent=computed({get:()=>form.near_return_buffer==null?'':String(Number(form.near_return_buffer)*100),set:value=>{form.near_return_buffer=String(Number(value||0)/100)}})
 async function load(){try{Object.assign(form,await get('/api/settings'));snapshot.value=JSON.stringify(form)}catch(e){error.value=(e as Error).message}}
 async function save(){saving.value=true;message.value='';error.value='';try{Object.assign(form,await put('/api/settings',form));snapshot.value=JSON.stringify(form);message.value='塔台参数已保存，新的规则将在后续监控中生效。'}catch(e){error.value=(e as Error).message}finally{saving.value=false}}
 async function testNotification(){testing.value=true;message.value='';error.value='';try{const result=await post<{message:string}>('/api/settings/notification/test');message.value=result.message}catch(e){error.value=(e as Error).message}finally{testing.value=false}}
@@ -19,7 +22,7 @@ onBeforeRouteLeave(()=>!dirty.value||window.confirm('塔台参数尚未保存，
 
 <template>
   <div class="page settings-page">
-    <p v-if="message" class="success-banner">{{message}}</p><p v-if="error" class="error-banner">{{error}}</p>
+    <OperationToast :message="message||error" :type="error?'error':'success'" @close="message='';error=''"/>
     <section class="control-console">
       <div class="console-statusbar"><div class="tower-callsign"><RadioTower :size="15"/><b>TZX WEALTH CONTROL</b><span>财富自由塔台 · 系统控制席</span></div><div class="console-indicators"><span><i class="green"></i>账本在线</span><span><i class="blue"></i>行情链路</span><span><Wifi :size="13"/>LOCAL 127.0.0.1</span></div><strong>119.93°E / 32.46°N</strong></div>
       <aside class="settings-nav">
@@ -38,8 +41,8 @@ onBeforeRouteLeave(()=>!dirty.value||window.confirm('塔台参数尚未保存，
           <label>默认单舱金额<div class="field-suffix"><input v-model="form.default_slot_amount" inputmode="decimal"/><span>元</span></div><small>新建舱位时采用的默认预算。</small></label>
         </div>
         <div v-else-if="active==='return'" class="settings-fields">
-          <label>默认目标收益<input v-model="form.default_target_return" inputmode="decimal"/><small>使用小数保存，例如 0.02 表示 2%。</small></label>
-          <label>近进阈值<input v-model="form.near_return_buffer" inputmode="decimal"/><small>达到目标航程约 80% 后进入近进状态。</small></label>
+          <label>默认目标收益率<div class="field-suffix"><input v-model="defaultTargetPercent" type="number" inputmode="decimal" min="0.01" step="0.01"/><span>%</span></div><small>直接填写百分数，例如 2.00 表示 2%。</small></label>
+          <label>近进提醒区间<div class="field-suffix"><input v-model="nearReturnPercent" type="number" inputmode="decimal" min="0.01" step="0.01"/><span>%</span></div><small>距离目标收益率进入该区间时标记为“接近返航”。</small></label>
           <label>长航程阈值<div class="field-suffix"><input v-model.number="form.long_voyage_days" type="number" min="1"/><span>天</span></div><small>超过该交易日数量后标记为长航程。</small></label>
         </div>
         <div v-else-if="active==='market'" class="settings-fields">
@@ -69,4 +72,7 @@ onBeforeRouteLeave(()=>!dirty.value||window.confirm('塔台参数尚未保存，
 <style scoped>
 .console-statusbar{grid-column:1/-1;height:48px;display:flex;align-items:center;gap:20px;padding:0 18px;background:#183e69;color:#dce9f5;border-bottom:1px solid #102f52}.tower-callsign{display:flex;align-items:center;gap:8px}.tower-callsign b{font-size:9px;letter-spacing:.1em}.tower-callsign>span{color:#9eb5cb;font-size:8px}.console-indicators{display:flex;align-items:center;gap:16px;margin-left:auto}.console-indicators span{display:flex;align-items:center;gap:5px;color:#b8c9d9;font-size:8px}.console-indicators i{width:5px;height:5px;border-radius:50%;box-shadow:0 0 0 3px rgba(255,255,255,.06)}.console-indicators i.green{background:#36ce93}.console-indicators i.blue{background:#56a3ff}.console-statusbar>strong{padding-left:17px;border-left:1px solid rgba(255,255,255,.16);color:#8facbf;font-size:7px;letter-spacing:.08em}.settings-nav nav button{display:grid;grid-template-columns:22px 18px 1fr auto;gap:7px}.settings-nav nav button>span{color:#a3afbb;font-size:8px;font-variant-numeric:tabular-nums}.settings-nav nav button>b{font-size:11px;text-align:left}.settings-nav nav button>small{color:#a1acb7;font-size:7px;letter-spacing:.09em}.settings-nav nav button.active>span,.settings-nav nav button.active>small{color:#4d79ad}.workspace-state{display:flex;align-items:center;gap:7px;color:#8b98a5}.synced-state{display:flex;align-items:center;gap:5px;color:var(--tower-green);font-size:9px}.synced-state::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor}.settings-fields{counter-reset:control-item}.settings-fields>label{counter-increment:control-item;position:relative;padding:18px 16px 16px;border:1px solid #e0e7ee;border-radius:10px;background:linear-gradient(145deg,#fbfcfd,#f6f8fa);box-shadow:inset 0 1px 0 #fff}.settings-fields>label::before{content:"CTRL " counter(control-item,decimal-leading-zero);position:absolute;right:12px;top:9px;color:#a3afba;font-size:6px;font-weight:700;letter-spacing:.09em}.settings-fields>label::after{content:"";position:absolute;left:16px;right:16px;top:0;height:2px;border-radius:0 0 2px 2px;background:#afbecd}.settings-fields>label:focus-within{border-color:#aac4e2;box-shadow:0 0 0 3px #edf4fb,inset 0 1px 0 #fff}.settings-fields>label:focus-within::after{background:var(--flight-blue)}.settings-fields input,.settings-fields select{background:#fff;border-color:#d6dfe8;font-variant-numeric:tabular-nums}.settings-workspace{background:linear-gradient(#fff,#fbfcfd)}
 @media(max-width:820px){.console-statusbar{height:auto;min-height:48px}.console-statusbar>strong,.tower-callsign>span{display:none}.console-indicators span:last-child{display:none}}@media(max-width:520px){.console-indicators span:nth-child(2){display:none}.settings-fields>label{padding-left:13px;padding-right:13px}}
+</style>
+<style scoped>
+.settings-heading>span,.settings-workspace>footer>span{font-size:11px}.settings-nav nav button{min-height:44px;font-size:12px}.settings-nav nav button>span,.settings-nav nav button>small{font-size:10px}.settings-nav nav button>b{font-size:12px}.ledger-note b,.workspace-state span{font-size:11px}.ledger-note span{font-size:10px}.settings-fields>label::before{font-size:9px}.tower-callsign b,.tower-callsign>span,.console-indicators span{font-size:10px}.console-statusbar>strong{font-size:9px}
 </style>

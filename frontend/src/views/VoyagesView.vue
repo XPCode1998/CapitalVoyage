@@ -23,6 +23,8 @@ const message=ref('')
 const modalError=ref('')
 const saving=ref(false)
 const loading=ref(true)
+const query=ref('')
+const slotFilter=ref<'ALL'|'ACTIVE'|'AVAILABLE'>('ALL')
 const security=ref<{symbol:string;name:string;market:string;settlement_mode:string;last_price:string|null}|null>(null)
 const securityLoading=ref(false)
 let lookupTimer:number|undefined
@@ -31,6 +33,15 @@ const form=reactive({symbol:'510300',entry_time:new Date().toISOString().slice(0
 const editForm=reactive({entry_time:'',entry_price:'',entry_quantity:0,entry_fee:'',target_return_percent:''})
 const exitForm=reactive({exit_time:'',exit_price:'',total_fee:'0'})
 const returnQuote=computed(()=>{if(!returning.value)return null;const price=Number(exitForm.exit_price||0),quantity=Number(returning.value.remaining_quantity||0),fee=Number(exitForm.total_fee||0),entryUnitCost=Number(returning.value.entry_cost||0)/Math.max(Number(returning.value.entry_quantity||1),1),net=price*quantity-fee-entryUnitCost*quantity;return{gross:price*quantity,net,rate:entryUnitCost?net/(entryUnitCost*quantity):0}})
+const activeVoyages=computed(()=>slots.value.filter(slot=>slot.voyage).length)
+const availableSlots=computed(()=>slots.value.length-activeVoyages.value)
+const filteredSlots=computed(()=>slots.value.filter(slot=>{
+  const matchesState=slotFilter.value==='ALL'||(slotFilter.value==='ACTIVE'?!!slot.voyage:!slot.voyage)
+  const text=`${slot.slot_no} ${slot.voyage?.voyage_no||''} ${slot.voyage?.name||''} ${slot.voyage?.symbol||''}`.toLowerCase()
+  return matchesState&&text.includes(query.value.trim().toLowerCase())
+}))
+let createSnapshot=JSON.stringify(form),editSnapshot='',returnSnapshot=''
+const createDirty=computed(()=>JSON.stringify(form)!==createSnapshot)
 
 function datetimeLocal(value:string|Date=new Date()){
   const date=value instanceof Date?value:new Date(value)
@@ -38,20 +49,25 @@ function datetimeLocal(value:string|Date=new Date()){
 }
 
 function targetDecimal(value:string){return String(Number(value||0)/100)}
+function resetCreateForm(){Object.assign(form,{symbol:'510300',entry_time:datetimeLocal(),entry_price:'',entry_quantity:12500,entry_fee:'5',target_return_percent:'2.00'});preview.value=null;modalError.value='';createSnapshot=JSON.stringify(form)}
 async function load(){loading.value=true;error.value='';try{slots.value=await get<Slot[]>('/api/slots');const requested=Number(route.query.voyage);if(requested){selected.value=slots.value.map(item=>item.voyage).find(item=>item?.id===requested)||null;router.replace({query:{}})}}catch(e){error.value=(e as Error).message}finally{loading.value=false}}
 async function lookupSecurity(){const symbol=form.symbol.trim();security.value=null;if(!/^\d{6}$/.test(symbol))return;securityLoading.value=true;try{const results=await get<Array<{symbol:string;name:string;market:string;settlement_mode:string;last_price:string|null}>>(`/api/securities/search?q=${encodeURIComponent(symbol)}`);security.value=results.find(item=>item.symbol===symbol)||null}catch{security.value=null}finally{securityLoading.value=false}}
 function scheduleLookup(){if(lookupTimer)window.clearTimeout(lookupTimer);lookupTimer=window.setTimeout(lookupSecurity,320)}
 async function updatePreview(){if(!form.entry_price||!form.entry_quantity)return;try{preview.value=await post('/api/voyages/preview',{entry_price:form.entry_price,entry_quantity:form.entry_quantity,entry_fee:form.entry_fee,target_return:targetDecimal(form.target_return_percent)})}catch{preview.value=null}}
 function validateCreate(){if(!/^\d{6}$/.test(form.symbol))return'请输入 6 位 ETF 代码';if(Number(form.entry_price)<=0||Number(form.entry_quantity)<=0||Number(form.entry_fee)<0)return'请检查起航价格、份额和费用';if(Number(form.target_return_percent)<=0)return'目标收益率必须大于 0';const cost=Number(form.entry_price)*Number(form.entry_quantity)+Number(form.entry_fee||0);if(!Number.isFinite(cost))return'请输入有效的起航数据';if(creating.value&&cost>Number(creating.value.budget_amount))return`实际投入不能超过舱位预算 ${money(creating.value.budget_amount)}`;if(new Date(form.entry_time)>new Date())return'起航时间不能晚于当前时间';return''}
 async function create(){if(!creating.value||saving.value)return;modalError.value=validateCreate();if(modalError.value)return;saving.value=true;error.value='';try{await post('/api/voyages',{slot_id:creating.value.id,symbol:form.symbol,entry_time:new Date(form.entry_time).toISOString(),entry_price:form.entry_price,entry_quantity:form.entry_quantity,entry_fee:form.entry_fee,target_return:targetDecimal(form.target_return_percent)});message.value='新航班已签发并进入财富航线';creating.value=null;await load()}catch(e){modalError.value=(e as Error).message}finally{saving.value=false}}
-function openEdit(voyage:Voyage){Object.assign(editForm,{entry_time:datetimeLocal(voyage.entry_time),entry_price:voyage.entry_price,entry_quantity:voyage.entry_quantity,entry_fee:voyage.entry_fee,target_return_percent:(Number(voyage.target_return)*100).toFixed(2)});editing.value=voyage;selected.value=null;modalError.value=''}
-function openReturn(voyage:Voyage){Object.assign(exitForm,{exit_time:datetimeLocal(),exit_price:voyage.monitor_price||'',total_fee:'0'});returning.value=voyage;selected.value=null;modalError.value=''}
+function openEdit(voyage:Voyage){Object.assign(editForm,{entry_time:datetimeLocal(voyage.entry_time),entry_price:voyage.entry_price,entry_quantity:voyage.entry_quantity,entry_fee:voyage.entry_fee,target_return_percent:(Number(voyage.target_return)*100).toFixed(2)});editSnapshot=JSON.stringify(editForm);editing.value=voyage;selected.value=null;modalError.value=''}
+function openReturn(voyage:Voyage){Object.assign(exitForm,{exit_time:datetimeLocal(),exit_price:'',total_fee:'0'});returnSnapshot=JSON.stringify(exitForm);returning.value=voyage;selected.value=null;modalError.value=''}
 function openCancel(voyage:Voyage){cancelling.value=voyage;selected.value=null;modalError.value=''}
+function allowDiscard(dirty:boolean){return!dirty||window.confirm('当前填写内容尚未保存，确定放弃并关闭吗？')}
+function closeCreating(){if(allowDiscard(createDirty.value)){creating.value=null;modalError.value=''}}
+function closeEditing(){if(allowDiscard(JSON.stringify(editForm)!==editSnapshot)){editing.value=null;modalError.value=''}}
+function closeReturning(){if(allowDiscard(JSON.stringify(exitForm)!==returnSnapshot)){returning.value=null;modalError.value=''}}
 function canReturn(voyage:Voyage){return new Date()>=new Date(voyage.sellable_at)}
 async function saveEdit(){if(!editing.value||saving.value)return;if(Number(editForm.entry_price)<=0||Number(editForm.entry_quantity)<=0||Number(editForm.entry_fee)<0){modalError.value='请检查起航价格、份额和费用';return}if(Number(editForm.target_return_percent)<=0){modalError.value='目标收益率必须大于 0';return}saving.value=true;modalError.value='';try{const updated=await patch<Voyage>(`/api/voyages/${editing.value.id}`,{entry_time:new Date(editForm.entry_time).toISOString(),entry_price:editForm.entry_price,entry_quantity:editForm.entry_quantity,entry_fee:editForm.entry_fee,target_return:targetDecimal(editForm.target_return_percent)});message.value=`${updated.voyage_no} 已完成改签`;editing.value=null;await load()}catch(e){modalError.value=(e as Error).message}finally{saving.value=false}}
 async function submitReturn(){if(!returning.value||saving.value)return;if(Number(exitForm.exit_price)<=0||Number(exitForm.total_fee)<0){modalError.value='请填写有效的成交价格和卖出费用';return}if(new Date(exitForm.exit_time)>new Date()){modalError.value='返航时间不能晚于当前时间';return}saving.value=true;modalError.value='';try{const voyage=returning.value;await post('/api/exits',{symbol:voyage.symbol,exit_time:new Date(exitForm.exit_time).toISOString(),exit_price:exitForm.exit_price,total_quantity:voyage.remaining_quantity,total_fee:exitForm.total_fee,allocations:[{voyage_id:voyage.id,quantity:voyage.remaining_quantity}]});message.value=`${voyage.voyage_no} 已返航并写入钱途记录`;returning.value=null;await load()}catch(e){modalError.value=(e as Error).message}finally{saving.value=false}}
 async function cancelVoyage(){if(!cancelling.value||saving.value)return;saving.value=true;modalError.value='';try{const voyage=cancelling.value;await post(`/api/voyages/${voyage.id}/cancel`);message.value=`${voyage.voyage_no} 已取消，舱位恢复待调度`;cancelling.value=null;await load()}catch(e){modalError.value=(e as Error).message}finally{saving.value=false}}
-function activateSlot(slot:Slot){if(slot.voyage)selected.value=slot.voyage;else creating.value=slot}
+function activateSlot(slot:Slot){if(slot.voyage)selected.value=slot.voyage;else{resetCreateForm();creating.value=slot}}
 
 watch(message,value=>{if(value)window.setTimeout(()=>{if(message.value===value)message.value=''},3500)})
 onMounted(()=>{load();lookupSecurity()})
@@ -61,62 +77,73 @@ onMounted(()=>{load();lookupSecurity()})
   <div class="page voyages-page">
     <OperationToast :message="message||error" :type="error?'error':'success'" @close="error='';message=''"/>
 
+    <header class="page-header voyages-header">
+      <div><p class="section-kicker">CAPITAL DISPATCH</p><h1>资金调度</h1><p>每个舱位独立管理一笔投资，记录真实买入与卖出。</p></div>
+      <div class="dispatch-summary" aria-label="舱位摘要"><span><b>{{activeVoyages}}</b>持有航次</span><i></i><span><b>{{availableSlots}}</b>空闲舱位</span></div>
+    </header>
+
+    <div class="dispatch-toolbar panel">
+      <div class="dispatch-tabs" aria-label="舱位筛选"><button type="button" :class="{active:slotFilter==='ALL'}" :aria-pressed="slotFilter==='ALL'" @click="slotFilter='ALL'">全部舱位 <span>{{slots.length}}</span></button><button type="button" :class="{active:slotFilter==='ACTIVE'}" :aria-pressed="slotFilter==='ACTIVE'" @click="slotFilter='ACTIVE'">持有中 <span>{{activeVoyages}}</span></button><button type="button" :class="{active:slotFilter==='AVAILABLE'}" :aria-pressed="slotFilter==='AVAILABLE'" @click="slotFilter='AVAILABLE'">待调度 <span>{{availableSlots}}</span></button></div>
+      <label class="dispatch-search"><Search :size="17"/><span class="sr-only">搜索舱位、航次或 ETF</span><input v-model="query" placeholder="搜索航次、ETF 或舱位"/></label>
+    </div>
+
     <div v-if="loading" class="loading" aria-live="polite">正在读取资金舱位…</div>
 
-    <section v-else class="ticket-grid" aria-label="资金舱位">
-      <SlotTicket v-for="slot in slots" :key="slot.id" :slot="slot" @activate="activateSlot"/>
+    <section v-else-if="filteredSlots.length" class="ticket-grid" aria-label="资金舱位">
+      <SlotTicket v-for="slot in filteredSlots" :key="slot.id" :slot="slot" @activate="activateSlot"/>
     </section>
+    <div v-else class="panel dispatch-empty"><Search :size="24"/><h2>{{error?'舱位读取失败':'没有匹配的舱位'}}</h2><p>{{error?'请重试以读取最新持仓。':'调整关键词或舱位状态后再试。'}}</p><button class="secondary" @click="error?load():(query='',slotFilter='ALL')">{{error?'重新加载':'清除筛选'}}</button></div>
 
-    <FlightSidePanel v-if="creating" title="签发新航班" eyebrow="BOARDING ISSUANCE · 调度柜台" strip-label="DISPATCH DESK" :prevent-close="saving" @close="creating=null">
+    <FlightSidePanel v-if="creating" title="记录买入" eyebrow="新航次 · 资金调度" strip-label="CAPITAL DISPATCH" :prevent-close="saving" @close="closeCreating">
       <form id="create-flight-form" class="form-grid aviation-form drawer-form" @submit.prevent="create">
         <div class="boarding-route"><div><small>DEPARTURE / 起点</small><strong>{{form.symbol||'ETF'}}</strong><span>ETF 资金机场</span></div><div class="boarding-airway"><i></i><PlaneTakeoff :size="20"/><em>QC / NEW</em></div><div><small>DESTINATION / 目的地</small><strong>WFT</strong><span>财富自由塔台</span></div><b>{{String(creating.slot_no).padStart(2,'0')}}</b></div>
-        <p class="form-section-title">01 · 航班身份与起航信息</p>
+        <p class="form-section-title">01 · 实际买入成交</p>
         <p v-if="modalError" class="error-banner form-alert">{{modalError}}</p>
         <label>ETF 代码<div class="field-with-icon"><input v-model="form.symbol" autofocus required maxlength="6" inputmode="numeric" placeholder="510300" @input="scheduleLookup"/><Search :size="14"/></div></label>
-        <label>起航日期时间<input v-model="form.entry_time" type="datetime-local" required/></label>
+        <label>买入成交时间<input v-model="form.entry_time" type="datetime-local" required/></label>
         <div v-if="security||securityLoading" class="security-result"><span>{{securityLoading?'正在校验 ETF…':security?.name}}</span><b v-if="security">{{security.market}} · {{security.settlement_mode}} · 最近有效价 {{security.last_price||'—'}}</b></div>
-        <label>起航价格<div class="input-with-unit"><input v-model="form.entry_price" inputmode="decimal" required placeholder="4.000" @input="updatePreview"/><span>元</span></div></label>
-        <label>起航份额<div class="input-with-unit"><input v-model.number="form.entry_quantity" type="number" min="1" required @input="updatePreview"/><span>份</span></div></label>
-        <label>起航费用<div class="input-with-unit"><input v-model="form.entry_fee" inputmode="decimal" min="0" @input="updatePreview"/><span>元</span></div></label>
+        <label>买入成交价<div class="input-with-unit"><input v-model="form.entry_price" inputmode="decimal" required placeholder="填写实际成交价" @input="updatePreview"/><span>元</span></div></label>
+        <label>买入份额<div class="input-with-unit"><input v-model.number="form.entry_quantity" type="number" min="1" required @input="updatePreview"/><span>份</span></div></label>
+        <label>买入费用<div class="input-with-unit"><input v-model="form.entry_fee" inputmode="decimal" min="0" @input="updatePreview"/><span>元</span></div></label>
         <label>目标收益率<div class="input-with-unit"><input v-model="form.target_return_percent" inputmode="decimal" min="0.01" required @input="updatePreview"/><span>%</span></div><small>直接填写百分数，例如 2.00</small></label>
         <p class="form-section-title">02 · 舱位与返航计划</p>
         <div class="preview-box">
           <div><span>舱位预算</span><b>{{money(creating.budget_amount)}}</b></div>
           <div><span>实际投入</span><b>{{preview?money(preview.actual_investment):'—'}}</b></div>
           <div><span>返航目标</span><b>{{Number(form.target_return_percent||0).toFixed(2)}}%</b></div>
-          <div><span>预计净返航线</span><b>{{preview?.target_price||'—'}}</b></div>
+          <div><span>目标参考价 · 元</span><b>{{preview?.target_price||'—'}}</b></div>
         </div>
       </form>
-      <template #footer><div class="side-panel-actions one"><button type="submit" form="create-flight-form" class="panel-action primary" :disabled="saving"><PlaneTakeoff :size="16"/>{{saving?'正在签发…':'签发机票并起航'}}</button></div></template>
+      <template #footer><div class="side-panel-actions one"><button type="submit" form="create-flight-form" class="panel-action primary" :disabled="saving"><PlaneTakeoff :size="16"/>{{saving?'正在保存…':'保存买入并建立航次'}}</button></div></template>
     </FlightSidePanel>
 
-    <FlightSidePanel v-if="editing" :title="`改签 · ${editing.voyage_no}`" eyebrow="FLIGHT RESCHEDULE · 签派变更" strip-label="RESCHEDULE DESK" :prevent-close="saving" @close="editing=null;modalError=''">
+    <FlightSidePanel v-if="editing" :title="`编辑航次 · ${editing.voyage_no}`" eyebrow="买入资料与收益目标" strip-label="FLIGHT DETAILS" :prevent-close="saving" @close="closeEditing">
       <form id="edit-flight-form" class="form-grid aviation-form drawer-form" @submit.prevent="saveEdit">
         <div class="boarding-route"><div><small>DEPARTURE / 起点</small><strong>{{editing.symbol}}</strong><span>{{editing.name}}</span></div><div class="boarding-airway"><i></i><PlaneTakeoff :size="20"/><em>{{editing.voyage_no}}</em></div><div><small>DESTINATION / 目的地</small><strong>WFT</strong><span>财富自由塔台</span></div><b>R</b></div>
         <p class="form-section-title">航班资料变更</p>
         <p v-if="modalError" class="error-banner form-alert">{{modalError}}</p>
         <label>ETF 代码<input :value="editing.symbol" disabled/></label>
-        <label>起航日期时间<input v-model="editForm.entry_time" type="datetime-local" required/></label>
-        <label>起航价格<input v-model="editForm.entry_price" inputmode="decimal" required/></label>
-        <label>起航份额<input v-model.number="editForm.entry_quantity" type="number" min="1" required/></label>
-        <label>起航费用<input v-model="editForm.entry_fee" inputmode="decimal" min="0" required/></label>
+        <label>买入成交时间<input v-model="editForm.entry_time" type="datetime-local" required/></label>
+        <label>买入成交价 · 元<input v-model="editForm.entry_price" inputmode="decimal" required/></label>
+        <label>买入份额<input v-model.number="editForm.entry_quantity" type="number" min="1" required/></label>
+        <label>买入费用 · 元<input v-model="editForm.entry_fee" inputmode="decimal" min="0" required/></label>
         <label>目标收益率<div class="input-with-unit"><input v-model="editForm.target_return_percent" inputmode="decimal" required/><span>%</span></div><small>改签起航时间后，可卖时间会按结算规则自动重算。</small></label>
       </form>
-      <template #footer><div class="side-panel-actions two"><button type="button" class="panel-action secondary" @click="editing=null"><ArrowLeft :size="15"/>返回</button><button type="submit" form="edit-flight-form" class="panel-action primary" :disabled="saving"><Pencil :size="15"/>{{saving?'保存中…':'确认改签'}}</button></div></template>
+      <template #footer><div class="side-panel-actions two"><button type="button" class="panel-action secondary" @click="closeEditing"><ArrowLeft :size="15"/>返回</button><button type="submit" form="edit-flight-form" class="panel-action primary" :disabled="saving"><Pencil :size="15"/>{{saving?'保存中…':'保存修改'}}</button></div></template>
     </FlightSidePanel>
 
-    <FlightSidePanel v-if="returning" :title="`返航 · ${returning.voyage_no}`" eyebrow="LANDING SETTLEMENT · 到港结算" strip-label="LANDING DESK" :subtitle="`${returning.name} · ${returning.symbol}`" :prevent-close="saving" @close="returning=null;modalError=''">
+    <FlightSidePanel v-if="returning" :title="`记录卖出 · ${returning.voyage_no}`" eyebrow="全部剩余份额 · 返航归档" strip-label="TRADE SETTLEMENT" :subtitle="`${returning.name} · ${returning.symbol}`" :prevent-close="saving" @close="closeReturning">
       <form id="return-flight-form" class="form-grid return-form drawer-form" @submit.prevent="submitReturn">
         <div class="boarding-route return-route"><div><small>DEPARTURE / 起点</small><strong>{{returning.symbol}}</strong><span>{{returning.name}}</span></div><div class="boarding-airway"><i></i><PlaneLanding :size="20"/><em>{{returning.voyage_no}}</em></div><div><small>ARRIVAL / 到港</small><strong>WFT</strong><span>财富自由塔台</span></div></div>
         <p v-if="modalError" class="error-banner form-alert">{{modalError}}</p>
         <div class="return-summary"><div><span>ETF</span><b>{{returning.name}} · {{returning.symbol}}</b></div><div><span>本次返航份额</span><b>{{number(returning.remaining_quantity)}} 份</b></div><div><span>参考监控价</span><b>{{returning.monitor_price||'—'}}</b></div></div>
         <label>最终卖出价格<div class="input-with-unit"><input v-model="exitForm.exit_price" autofocus inputmode="decimal" required placeholder="实际成交价格"/><span>元</span></div></label>
-        <label>返航时间<input v-model="exitForm.exit_time" type="datetime-local" required/></label>
+        <label>卖出成交时间<input v-model="exitForm.exit_time" type="datetime-local" required/></label>
         <label>卖出费用<div class="input-with-unit"><input v-model="exitForm.total_fee" inputmode="decimal" min="0" required/><span>元</span></div></label>
-        <div v-if="returnQuote" class="settlement-preview"><div><span>预计成交总额</span><b>{{money(returnQuote.gross)}}</b></div><div><span>预计净收益</span><b :class="returnQuote.net>=0?'positive':'negative'">{{money(returnQuote.net)}}</b></div><div><span>预计实际收益率</span><b :class="returnQuote.rate>=0?'positive':'negative'">{{percent(returnQuote.rate)}}</b></div></div>
-        <p class="return-note"><b>到港后不可撤回</b> · 将返航全部剩余份额，释放舱位，并把实际成交结果写入钱途记录。</p>
+        <div v-if="returnQuote&&Number(exitForm.exit_price)>0" class="settlement-preview"><div><span>成交金额预览</span><b>{{money(returnQuote.gross)}}</b></div><div><span>净收益预览</span><b :class="returnQuote.net>=0?'positive':'negative'">{{money(returnQuote.net)}}</b></div><div><span>收益率预览</span><b :class="returnQuote.rate>=0?'positive':'negative'">{{percent(returnQuote.rate)}}</b></div></div>
+        <p class="return-note">请按券商的真实成交填写。此处记录全部剩余份额，保存后释放舱位并归档，<b>不可撤回</b>。部分卖出可在返航中心分配份额。</p>
       </form>
-      <template #footer><div class="side-panel-actions two"><button type="button" class="panel-action secondary" @click="returning=null"><ArrowLeft :size="15"/>返回</button><button type="submit" form="return-flight-form" class="panel-action return" :disabled="saving"><PlaneLanding :size="16"/>{{saving?'正在归档…':'确认返航并归档'}}</button></div></template>
+      <template #footer><div class="side-panel-actions two"><button type="button" class="panel-action secondary" @click="closeReturning"><ArrowLeft :size="15"/>返回</button><button type="submit" form="return-flight-form" class="panel-action return" :disabled="saving"><PlaneLanding :size="16"/>{{saving?'正在保存…':'保存卖出并归档'}}</button></div></template>
     </FlightSidePanel>
 
     <AppModal v-if="cancelling" :title="`取消航班 · ${cancelling.voyage_no}`" eyebrow="VOID FLIGHT" :prevent-close="saving" @close="cancelling=null;modalError=''">
@@ -132,8 +159,8 @@ onMounted(()=>{load();lookupSecurity()})
         <template #status><FlightStateBadge :state="selected.runtime_state"/></template>
         <div class="manifest-route"><div><small>DEP</small><strong>{{selected.symbol}}</strong><span>ETF 资金机场</span></div><div class="manifest-airway"><i></i><PlaneTakeoff :size="19"/><em>WEALTH ROUTE</em></div><div><small>ARR</small><strong>WFT</strong><span>财富自由塔台</span></div></div>
         <div class="detail-return">
-          <span>当前净收益</span>
-          <b :class="{positive:Number(selected.net_return||0)>=0}">{{selected.net_return===null?'—':percent(selected.net_return)}}</b>
+          <span>参考净收益率</span>
+          <b :class="{positive:Number(selected.net_return||0)>=0,negative:Number(selected.net_return||0)<0}">{{selected.net_return===null?'—':percent(selected.net_return)}}</b>
           <small>{{stateDescription(selected.runtime_state)}}</small>
         </div>
         <h3 class="manifest-section"><span>OPERATION DATA</span>起航与返航条件</h3>
@@ -152,12 +179,12 @@ onMounted(()=>{load();lookupSecurity()})
 </template>
 
 <style scoped>
-.voyages-page{max-width:1680px}.ticket-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:18px 16px}
+.voyages-page{max-width:1680px}.ticket-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:18px 16px}.dispatch-summary{display:flex;align-items:center;gap:16px;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:#fff;box-shadow:var(--shadow-ticket)}.dispatch-summary span{display:grid;justify-items:center;gap:2px;color:var(--muted-2);font-size:11px}.dispatch-summary b{color:var(--ink);font-size:20px;font-variant-numeric:tabular-nums}.dispatch-summary i{width:1px;height:30px;background:var(--line)}
 .form-alert{grid-column:1/-1;margin-bottom:0}.modal-actions{grid-column:1/-1;display:flex;justify-content:flex-end;gap:9px;margin-top:5px}.modal-actions button,.voyage-actions button{border:0;border-radius:8px;padding:10px 16px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:12px;font-weight:650}.return-summary{grid-column:1/-1;display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:8px;padding:14px;background:#f6f8fa;border-radius:10px}.return-summary div{display:grid;gap:4px}.return-summary span{font-size:9px;color:#89949f}.return-summary b{font-size:12px}.return-note{grid-column:1/-1;margin:0;padding:11px 13px;border-radius:8px;background:#f1f8f5;color:#527266;font-size:10px;line-height:1.6}.return-button,.action-return{background:#168b62;color:#fff}.return-button:hover,.action-return:hover{background:#117451}.confirm-cancel{background:#fff0f0;color:#bd3f45}.cancel-confirm>strong{font-size:16px}.cancel-confirm>p:not(.error-banner){color:#74808c;font-size:12px;line-height:1.7}.cancel-confirm .modal-actions{margin-top:22px}.voyage-actions{display:grid;grid-template-columns:1fr 1fr 1.25fr;gap:8px;margin-top:28px}.voyage-actions button{padding:11px 10px}.action-edit{background:#eef4fc;color:#2866b7}.action-cancel{background:#fff1f1;color:#bd3f45}.voyage-actions button:disabled{background:#f1f3f5;color:#a2aab3;cursor:not-allowed}.success-banner{margin-bottom:14px}
 @media(max-width:1439px){.ticket-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}}
 @media(max-width:1199px){.ticket-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:899px){.ticket-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:767px){.ticket-grid{grid-template-columns:1fr;gap:13px}.return-summary{grid-template-columns:1fr}.voyage-actions{grid-template-columns:1fr 1fr}.action-return{grid-column:1/-1}}
+@media(max-width:767px){.ticket-grid{grid-template-columns:1fr;gap:13px}.return-summary{grid-template-columns:1fr}.voyage-actions{grid-template-columns:1fr 1fr}.action-return{grid-column:1/-1}.dispatch-summary{width:100%;justify-content:center}}
 .settlement-preview{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,1fr);gap:1px;padding:1px;overflow:hidden;border:1px solid #e1ebe6;border-radius:10px;background:#e1ebe6}.settlement-preview>div{display:grid;gap:5px;padding:12px;background:#f6fbf8}.settlement-preview span{color:#85938d;font-size:9px}.settlement-preview b{font-size:13px}.negative{color:var(--beacon-red)!important}.manifest-title{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-top:8px}.manifest-title h2{margin:0}.manifest-title .drawer-name{margin:4px 0 0}.detail-return small{display:block;max-width:250px;margin-top:7px;color:#84909c;font-size:9px;line-height:1.5}.manifest-section{margin:0 0 2px;color:#687687;font-size:10px;font-weight:650}.return-lock{display:flex;justify-content:flex-end;align-items:center;gap:5px;margin:8px 2px 0;color:#8a96a2;font-size:9px}@media(max-width:620px){.settlement-preview{grid-template-columns:1fr}}
 .boarding-route{position:relative;grid-column:1/-1;display:grid;grid-template-columns:1fr 1.25fr 1fr;align-items:center;min-height:116px;margin:-4px -2px 2px;padding:20px 28px;border:1px solid #dce6f0;border-radius:12px;background:linear-gradient(120deg,#f5f9ff,#fff 52%,#f3faf7);overflow:hidden}.boarding-route::before,.boarding-route::after{content:"";position:absolute;top:50%;width:18px;height:36px;border:1px solid #dce6f0;border-radius:20px;background:#fff;transform:translateY(-50%)}.boarding-route::before{left:-10px}.boarding-route::after{right:-10px}.boarding-route>div:not(.boarding-airway){display:grid;gap:2px}.boarding-route>div:nth-child(3){text-align:right}.boarding-route small{color:#8292a3;font-size:7px;letter-spacing:.12em}.boarding-route strong{font-size:25px;letter-spacing:.04em}.boarding-route span{color:#6f7e8e;font-size:9px}.boarding-route>b{position:absolute;right:12px;top:8px;color:#d5dfeb;font-size:28px}.boarding-airway{position:relative;display:grid;place-items:center;color:var(--flight-blue)}.boarding-airway i{position:absolute;left:5px;right:5px;border-top:1px dashed #9eb9dc}.boarding-airway svg{position:relative;padding:5px;box-sizing:content-box;border-radius:50%;background:#fff;transform:rotate(8deg)}.boarding-airway em{position:absolute;top:28px;color:#8498ae;font-size:7px;font-style:normal;letter-spacing:.12em}.form-section-title{grid-column:1/-1;margin:3px 0 -4px;padding-bottom:8px;border-bottom:1px solid #e8eef4;color:#617387;font-size:9px;font-weight:700;letter-spacing:.08em}.aviation-form label{position:relative;padding-left:13px}.aviation-form label::before{content:"";position:absolute;left:0;top:2px;bottom:2px;width:2px;border-radius:2px;background:#dce6f2}.aviation-form label:focus-within::before{background:var(--flight-blue)}
 .dispatch-stripe{height:43px;display:flex;align-items:center;justify-content:space-between;margin:-38px -32px 27px;padding:0 32px;background:#183e69;color:#d7e5f3}.dispatch-stripe span{font-size:7px;letter-spacing:.13em}.dispatch-stripe b{font-size:8px;letter-spacing:.1em}.manifest-route{display:grid;grid-template-columns:1fr 1.2fr 1fr;align-items:center;margin:22px 0 16px;padding:15px 0;border-top:1px solid #e7edf3;border-bottom:1px solid #e7edf3}.manifest-route>div:not(.manifest-airway){display:grid;gap:2px}.manifest-route>div:last-child{text-align:right}.manifest-route small{color:#91a0ae;font-size:7px}.manifest-route strong{font-size:19px;letter-spacing:.03em}.manifest-route span{color:#788695;font-size:8px}.manifest-airway{position:relative;display:grid;place-items:center;color:var(--flight-blue)}.manifest-airway i{position:absolute;left:4px;right:4px;border-top:1px dashed #9fb7d2}.manifest-airway svg{position:relative;padding:4px;box-sizing:content-box;border-radius:50%;background:#fff;transform:rotate(7deg)}.manifest-airway em{position:absolute;top:25px;color:#95a2af;font-size:6px;font-style:normal;letter-spacing:.08em}.manifest-section{display:flex;align-items:center;justify-content:space-between;margin-top:22px;padding-bottom:8px;border-bottom:1px solid #e7edf3}.manifest-section span{color:#a0abb6;font-size:7px;letter-spacing:.12em}.detail-list div{position:relative}.detail-list div::before{content:"";position:absolute;left:0;bottom:-1px;width:34px;border-bottom:1px solid #a7bdd5}.dispatch-footer{display:flex;align-items:center;gap:7px;margin-top:24px;padding-top:12px;border-top:1px dashed #ccd7e2;color:#8795a3;font-size:7px;letter-spacing:.1em}.dispatch-footer i{flex:1;border-top:1px dotted #ccd7e2}.dispatch-footer b{color:#617387}.drawer-close{color:#dfe9f3;top:8px;right:16px;z-index:2}.drawer-close:hover{color:#fff}.detail-return{margin-top:16px;border-left:3px solid var(--tower-green);border-radius:4px 12px 12px 4px;background:linear-gradient(100deg,#f4f9f7,#f7f9fb)}

@@ -3,6 +3,7 @@ import {computed,onMounted,reactive,ref} from 'vue'
 import {Anchor,Scale} from 'lucide-vue-next'
 import {get,post} from '../api/client'
 import AppModal from '../components/AppModal.vue'
+import OperationToast from '../components/OperationToast.vue'
 import type {ReturnGroup} from '../types'
 import {number,percent} from '../utils/format'
 
@@ -23,8 +24,8 @@ onMounted(load)
 </script>
 <template>
   <div class="page returns-page">
+    <OperationToast :message="message||error" :type="error?'error':'success'" @close="message='';error=''"/>
     <header class="returns-page-header"><div><p class="section-kicker">LANDING SETTLEMENT · 返航中心</p><h1>待返航航次</h1><p>仅列出行情有效、已可卖且达到目标收益的航次。确认成交后，系统按你指定的分配完成归档。</p></div><div class="return-count"><span>READY TO RETURN</span><b>{{groups.reduce((total,group)=>total+group.ready_voyages.length,0)}}</b></div></header>
-    <p v-if="message" class="success-banner" role="status">{{message}}</p><p v-if="error" class="error-banner" role="alert">{{error}}</p>
     <div v-if="loading" class="panel loading" aria-live="polite">正在核对返航条件…</div>
     <div v-else-if="!groups.length" class="panel empty large"><Anchor :size="30"/><h2>暂无可返航航次</h2><p>系统会持续根据买一价和净收益线监控。</p></div>
     <section v-for="group in groups" :key="group.symbol" class="return-group panel"><header><div><p class="eyebrow">{{group.symbol}}</p><h2>{{group.name}}</h2></div><div class="system-position"><span>系统总持仓</span><b>{{number(group.system_total_quantity)}} 份</b></div></header><div class="allocation-list"><div v-for="voyage in group.ready_voyages" :key="voyage.voyage_no"><b>{{voyage.voyage_no}}</b><span>{{number(voyage.remaining_quantity)}} 份</span><span class="positive">{{percent(voyage.net_return)}}</span><i class="status ready">可返航</i></div></div><footer><div><span>当前可返航</span><strong>{{number(group.ready_quantity)}} <small>份</small></strong></div><div class="button-group"><button class="secondary" @click="reconcileGroup=group;brokerQty=group.system_total_quantity;modalError='' "><Scale :size="16"/>持仓核对</button><button class="primary" :disabled="opening" @click="openExit(group)">{{opening?'准备中…':'记录返航'}}</button></div></footer></section>

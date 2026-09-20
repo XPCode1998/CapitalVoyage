@@ -37,5 +37,8 @@ onBeforeUnmount(()=>{document.removeEventListener('keydown',onKeydown);unlockBod
 @media(max-width:700px){.modal-ticket{max-height:calc(100vh - 12px)}.modal-ticket>.modal-body{overflow:auto}}
 </style>
 <style scoped>
+.modal-close{width:36px;height:36px}
+</style>
+<style scoped>
 .modal-ticket>header{padding-top:16px;padding-bottom:16px;background:var(--airline-navy)}.modal-ticket>header .section-kicker{color:var(--sky-gray)}.modal-ticket>.modal-body{padding:20px}.modal-settlement>header{background:#f6fbf8}
 </style>
