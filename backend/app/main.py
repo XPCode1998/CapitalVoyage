@@ -5,9 +5,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.api import dashboard, exits, history, market, reconcile, returns, settings, slots, voyages
+from app.api import auth, dashboard, exits, history, market, reconcile, returns, settings, slots, voyages
 from app.api.common import failure, success
 from app.core.config import get_config
 from app.core.errors import DomainError
@@ -36,8 +37,28 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+@app.middleware("http")
+async def require_login(request: Request, call_next):
+    public_paths = {"/api/health", "/api/auth/login", "/api/auth/session"}
+    if request.url.path.startswith("/api/") and request.url.path not in public_paths and request.method != "OPTIONS":
+        if not request.session.get("authenticated"):
+            return failure("AUTH_REQUIRED", "请先登录", 401)
+    return await call_next(request)
 
-for router in (dashboard.router, slots.router, voyages.router, returns.router, exits.router, history.router, reconcile.router, market.router, settings.router):
+
+# Register this after the auth middleware so it wraps it and makes
+# request.session available before access control runs.
+config = get_config()
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=config.session_secret,
+    session_cookie="capitalvoyage_session",
+    max_age=60 * 60 * 24 * 30,
+    same_site="lax",
+    https_only=config.app_env.lower() == "production",
+)
+
+for router in (auth.router, dashboard.router, slots.router, voyages.router, returns.router, exits.router, history.router, reconcile.router, market.router, settings.router):
     app.include_router(router)
 
 
@@ -60,4 +81,3 @@ async def database_error_handler(_request: Request, _exc: SQLAlchemyError):
 @app.get("/api/health")
 def health():
     return success({"status": "ok"})
-

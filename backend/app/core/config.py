@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from secrets import token_urlsafe
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -46,6 +47,7 @@ class AppConfig(BaseSettings):
     notification_webhook_url: str = ""
     alert_cooldown_minutes: int = Field(default=30, ge=0)
     scheduler_enabled: bool = True
+    session_secret: str = Field(default_factory=lambda: token_urlsafe(48), min_length=32)
 
     @property
     def resolved_database_url(self) -> str:

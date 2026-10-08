@@ -20,6 +20,9 @@ def test_api_uniform_envelope_decimal_strings_and_core_routes(initialized_db_ses
     )
     client = TestClient(app)
     try:
+        assert client.get("/api/settings").status_code == 401
+        login = client.post("/api/auth/login", json={"username": "xp", "password": "980127"})
+        assert login.status_code == 200
         settings = client.get("/api/settings")
         assert settings.status_code == 200
         assert settings.json()["error"] is None
@@ -64,4 +67,3 @@ def test_api_uniform_envelope_decimal_strings_and_core_routes(initialized_db_ses
         assert reconciled.json()["data"]["matched"] is True
     finally:
         app.dependency_overrides.clear()
-

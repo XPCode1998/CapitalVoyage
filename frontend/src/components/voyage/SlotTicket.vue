@@ -46,8 +46,9 @@ function activate(){emit('activate',props.slot)}
       </div>
 
       <footer class="ticket-footer">
-        <div><span>{{slot.voyage?'舱位预算':'预算'}}</span><b>{{money(slot.budget_amount)}}</b></div>
-        <div v-if="slot.voyage"><span>起航价</span><b>¥{{slot.voyage.entry_price}}</b></div>
+        <template v-if="slot.voyage"><div><span>买入成本</span><b>{{money(slot.voyage.entry_cost)}}</b></div><div><span>起航价</span><b>¥{{slot.voyage.entry_price}}</b></div></template>
+        <div v-else><span>资金限制</span><b>不设单舱上限</b></div>
+        <div v-if="!slot.voyage"><span>舱位状态</span><b>可立即建仓</b></div>
       </footer>
     </div>
 

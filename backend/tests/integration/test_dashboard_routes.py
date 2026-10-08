@@ -117,6 +117,7 @@ def test_dashboard_exposes_all_routes_and_groups_etf_airports(initialized_db_ses
     app.state.runtime = SimpleNamespace(quote_cache=cache)
     client = TestClient(app)
     try:
+        assert client.post("/api/auth/login", json={"username": "xp", "password": "980127"}).status_code == 200
         response = client.get("/api/dashboard")
         assert response.status_code == 200
         data = response.json()["data"]

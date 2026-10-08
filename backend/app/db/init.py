@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 
 # Import every mapped model before create_all so SQLAlchemy can resolve string
 # relationships and include all Phase 1 tables in the metadata.
+from app.auth import models as auth_models  # noqa: F401
+from app.auth.service import AuthService
 from app.audit import models as audit_models  # noqa: F401
 from app.alert import models as alert_models  # noqa: F401
 from app.capital import models as capital_models  # noqa: F401
@@ -42,6 +44,7 @@ def init_db(engine: Engine = default_engine, config: AppConfig | None = None) ->
             )
             VoyageRepository(session).ensure_sequence()
             SettingsService(session).initialize(resolved_config, commit=False)
+            AuthService(session).initialize(commit=False)
             session.commit()
         except Exception:
             session.rollback()

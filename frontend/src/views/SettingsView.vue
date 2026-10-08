@@ -1,19 +1,18 @@
 <script setup lang="ts">
 import {computed,onBeforeUnmount,onMounted,reactive,ref,type Component} from 'vue'
 import {onBeforeRouteLeave} from 'vue-router'
-import {Bell,ChevronRight,Coins,Landmark,RadioTower,ReceiptText,Save,SlidersHorizontal,WalletCards} from 'lucide-vue-next'
+import {Bell,ChevronRight,Coins,KeyRound,Landmark,RadioTower,ReceiptText,Save,SlidersHorizontal,WalletCards} from 'lucide-vue-next'
 import {get,post,put} from '../api/client'
 import AppModal from '../components/AppModal.vue'
 import OperationToast from '../components/OperationToast.vue'
 
-type SettingKey='total_capital'|'slot_count'|'default_slot_amount'|'default_target_return'|'near_return_buffer'|'long_voyage_days'|'market_provider'|'market_poll_interval_seconds'|'market_quote_stale_seconds'|'return_price_mode'|'buy_commission_rate'|'sell_commission_rate'|'minimum_buy_commission'|'minimum_sell_commission'|'other_buy_fee_rate'|'other_sell_fee_rate'|'notification'
+type SettingKey='total_capital'|'slot_count'|'default_target_return'|'near_return_buffer'|'long_voyage_days'|'market_provider'|'market_poll_interval_seconds'|'market_quote_stale_seconds'|'return_price_mode'|'buy_commission_rate'|'sell_commission_rate'|'minimum_buy_commission'|'minimum_sell_commission'|'other_buy_fee_rate'|'other_sell_fee_rate'|'notification'|'account'
 type SettingItem={key:SettingKey;label:string;description:string;icon:Component}
 
 const groups:{title:string;items:SettingItem[]}[]=[
   {title:'资金与舱位',items:[
     {key:'total_capital',label:'总资金',description:'用于计算可调度资金与舱位占比',icon:WalletCards},
-    {key:'slot_count',label:'舱位数量',description:'可同时管理的独立航次数量',icon:Coins},
-    {key:'default_slot_amount',label:'默认单舱金额',description:'新建舱位时使用的预算金额',icon:WalletCards},
+    {key:'slot_count',label:'舱位数量',description:'可同时管理的独立航次数量，不限制每笔金额',icon:Coins},
   ]},
   {title:'收益与交易',items:[
     {key:'default_target_return',label:'目标净收益率',description:'新建航次默认采用的返航目标',icon:Landmark},
@@ -37,10 +36,14 @@ const groups:{title:string;items:SettingItem[]}[]=[
   {title:'通知',items:[
     {key:'notification',label:'通知方式与推送',description:'配置飞书、ntfy 或本地通知',icon:Bell},
   ]},
+  {title:'账号安全',items:[
+    {key:'account',label:'登录账号与密码',description:'修改本地登录账号或密码',icon:KeyRound},
+  ]},
 ]
 
 const form=reactive<Record<string,any>>({})
-const editor=ref<SettingKey|null>(null),message=ref(''),error=ref(''),saving=ref(false),testing=ref(false),snapshot=ref('')
+const credentials=reactive({username:'',currentPassword:'',newPassword:'',confirmPassword:''})
+const editor=ref<SettingKey|null>(null),message=ref(''),error=ref(''),saving=ref(false),credentialSaving=ref(false),testing=ref(false),snapshot=ref('')
 const dirty=computed(()=>snapshot.value!==''&&JSON.stringify(form)!==snapshot.value)
 const selected=computed(()=>groups.flatMap(group=>group.items).find(item=>item.key===editor.value))
 const defaultTargetPercent=computed({get:()=>form.default_target_return==null?'':String(Number(form.default_target_return)*100),set:value=>{form.default_target_return=String(Number(value||0)/100)}})
@@ -49,18 +52,21 @@ const money=(value:unknown)=>value==null||value===''?'未设置':`¥${Number(val
 const percent=(value:unknown)=>value==null||value===''?'未设置':`${(Number(value)*100).toFixed(2)}%`
 function valueFor(key:SettingKey){
   const values:Partial<Record<SettingKey,string>>={
-    total_capital:money(form.total_capital),slot_count:form.slot_count==null?'未设置':`${form.slot_count} 个`,default_slot_amount:money(form.default_slot_amount),
+    total_capital:money(form.total_capital),slot_count:form.slot_count==null?'未设置':`${form.slot_count} 个`,
     default_target_return:percent(form.default_target_return),near_return_buffer:percent(form.near_return_buffer),long_voyage_days:form.long_voyage_days==null?'未设置':`${form.long_voyage_days} 个交易日`,
     market_provider:'腾讯财经主源 · AKShare 备用',market_poll_interval_seconds:form.market_poll_interval_seconds==null?'未设置':`${form.market_poll_interval_seconds} 秒`,
     market_quote_stale_seconds:form.market_quote_stale_seconds==null?'未设置':`${form.market_quote_stale_seconds} 秒`,return_price_mode:form.return_price_mode==='LAST'?'最新价':'买一价',
     buy_commission_rate:percent(form.buy_commission_rate),sell_commission_rate:percent(form.sell_commission_rate),minimum_buy_commission:money(form.minimum_buy_commission),minimum_sell_commission:money(form.minimum_sell_commission),
-    other_buy_fee_rate:percent(form.other_buy_fee_rate),other_sell_fee_rate:percent(form.other_sell_fee_rate),notification:({none:'关闭',console:'本地控制台',feishu:'飞书',ntfy:'ntfy'} as Record<string,string>)[form.notification_provider]||'未设置',
+    other_buy_fee_rate:percent(form.other_buy_fee_rate),other_sell_fee_rate:percent(form.other_sell_fee_rate),notification:({none:'关闭',console:'本地控制台',feishu:'飞书',ntfy:'ntfy'} as Record<string,string>)[form.notification_provider]||'未设置',account:credentials.username||'本地账号',
   }
   return values[key]||'未设置'
 }
-async function load(){try{Object.assign(form,await get('/api/settings'));snapshot.value=JSON.stringify(form)}catch(e){error.value=(e as Error).message}}
+async function load(){try{const [settings,session]=await Promise.all([get('/api/settings'),get<{username:string|null}>('/api/auth/session')]);Object.assign(form,settings);credentials.username=session.username||'';snapshot.value=JSON.stringify(form)}catch(e){error.value=(e as Error).message}}
 async function save(){saving.value=true;message.value='';error.value='';try{Object.assign(form,await put('/api/settings',form));snapshot.value=JSON.stringify(form);message.value='设置已保存，新的规则将在后续监控中生效。';editor.value=null}catch(e){error.value=(e as Error).message}finally{saving.value=false}}
 async function testNotification(){testing.value=true;message.value='';error.value='';try{const result=await post<{message:string}>('/api/settings/notification/test');message.value=result.message}catch(e){error.value=(e as Error).message}finally{testing.value=false}}
+function openEditor(key:SettingKey){editor.value=key;error.value='';if(key==='account'){credentials.currentPassword='';credentials.newPassword='';credentials.confirmPassword=''}}
+async function saveCredentials(){if(credentialSaving.value)return;if(!credentials.username.trim()){error.value='登录账号不能为空';return}if(!credentials.currentPassword){error.value='请输入当前密码';return}if(credentials.newPassword!==credentials.confirmPassword){error.value='两次输入的新密码不一致';return}credentialSaving.value=true;message.value='';error.value='';try{const result=await put<{username:string}>('/api/auth/credentials',{username:credentials.username,current_password:credentials.currentPassword,new_password:credentials.newPassword||undefined});credentials.username=result.username;credentials.currentPassword='';credentials.newPassword='';credentials.confirmPassword='';message.value='登录账号与密码已更新。';editor.value=null}catch(e){error.value=(e as Error).message}finally{credentialSaving.value=false}}
+function submitEditor(){if(editor.value==='account')return saveCredentials();return save()}
 function beforeUnload(event:BeforeUnloadEvent){if(dirty.value){event.preventDefault();event.returnValue=''}}
 onMounted(()=>{load();window.addEventListener('beforeunload',beforeUnload)})
 onBeforeUnmount(()=>window.removeEventListener('beforeunload',beforeUnload))
@@ -79,7 +85,7 @@ onBeforeRouteLeave(()=>!dirty.value||window.confirm('设置尚未保存，确定
       <section v-for="group in groups" :key="group.title" class="settings-group">
         <h2>{{group.title}}</h2>
         <div class="settings-list">
-          <button v-for="item in group.items" :key="item.key" type="button" class="setting-row" @click="editor=item.key">
+          <button v-for="item in group.items" :key="item.key" type="button" class="setting-row" @click="openEditor(item.key)">
             <span class="setting-icon"><component :is="item.icon" :size="18"/></span>
             <span class="setting-copy"><b>{{item.label}}</b><small>{{item.description}}</small></span>
             <span class="setting-value">{{valueFor(item.key)}}</span>
@@ -92,10 +98,10 @@ onBeforeRouteLeave(()=>!dirty.value||window.confirm('设置尚未保存，确定
     <footer v-if="dirty" class="settings-savebar"><span>设置已修改，保存后会应用到后续监控。</span><button class="primary" :disabled="saving" @click="save"><Save :size="16"/>{{saving?'保存中…':'保存所有修改'}}</button></footer>
 
     <AppModal v-if="editor&&selected" :title="selected.label" :eyebrow="selected.description" @close="editor=null">
-      <form class="setting-editor" @submit.prevent="save">
-        <template v-if="editor==='total_capital'"><label>总资金<div class="field-suffix"><input v-model="form.total_capital" autofocus inputmode="decimal"/><span>元</span></div><small>用于计算可调度资金与舱位占比。</small></label></template>
+      <form class="setting-editor" @submit.prevent="submitEditor">
+        <template v-if="editor==='account'"><label>登录账号<input v-model="credentials.username" autofocus autocomplete="username" maxlength="64"/></label><label>当前密码<input v-model="credentials.currentPassword" type="password" autocomplete="current-password" maxlength="128"/></label><label>新密码 <small>留空则仅修改账号；设置新密码时至少 6 位。</small><input v-model="credentials.newPassword" type="password" autocomplete="new-password" minlength="6" maxlength="128"/></label><label>确认新密码<input v-model="credentials.confirmPassword" type="password" autocomplete="new-password" minlength="6" maxlength="128"/></label><div class="modal-actions"><button type="button" class="secondary" @click="editor=null">取消</button><button class="primary" :disabled="credentialSaving"><Save :size="15"/>{{credentialSaving?'保存中…':'保存账号设置'}}</button></div></template>
+        <template v-else-if="editor==='total_capital'"><label>总资金<div class="field-suffix"><input v-model="form.total_capital" autofocus inputmode="decimal"/><span>元</span></div><small>用于计算可调度资金与舱位占比。</small></label></template>
         <template v-else-if="editor==='slot_count'"><label>舱位数量<div class="field-suffix"><input v-model.number="form.slot_count" autofocus type="number" min="1" max="100"/><span>个</span></div><small>每个舱位可独立记录一段航次。</small></label></template>
-        <template v-else-if="editor==='default_slot_amount'"><label>默认单舱金额<div class="field-suffix"><input v-model="form.default_slot_amount" autofocus inputmode="decimal"/><span>元</span></div><small>新建舱位时采用的默认预算。</small></label></template>
         <template v-else-if="editor==='default_target_return'"><label>默认目标收益率<div class="field-suffix"><input v-model="defaultTargetPercent" autofocus type="number" inputmode="decimal" min="0.01" step="0.01"/><span>%</span></div><small>直接填写百分数，例如 2 表示 2%。</small></label></template>
         <template v-else-if="editor==='near_return_buffer'"><label>近进提醒区间<div class="field-suffix"><input v-model="nearReturnPercent" autofocus type="number" inputmode="decimal" min="0.01" step="0.01"/><span>%</span></div><small>距离目标收益进入该区间时标记为“接近返航”。</small></label></template>
         <template v-else-if="editor==='long_voyage_days'"><label>长航程阈值<div class="field-suffix"><input v-model.number="form.long_voyage_days" autofocus type="number" min="1"/><span>天</span></div><small>超过该交易日数量后标记为长航程。</small></label></template>
