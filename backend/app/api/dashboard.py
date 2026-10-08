@@ -83,6 +83,7 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
             "visual_state": visual_state,
             "quote_status": quote_status,
             "quote_time": quote.quote_time if quote else (monitor.last_quote_time if monitor else None),
+            "quote_source": quote.source if quote else None,
             "entry_time": voyage.entry_time,
             "sellable_at": voyage.sellable_at,
         }
@@ -125,7 +126,7 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
         else QuoteStatus.UNAVAILABLE
     )
     return success({
-        "market": {"status": MarketStatus.OPEN if market_open else MarketStatus.CLOSED, "quote_status": quote_status, "updated_at": max((route["quote_time"] for route in routes if route["quote_time"] is not None), default=None)},
+        "market": {"status": MarketStatus.OPEN if market_open else MarketStatus.CLOSED, "quote_status": quote_status, "updated_at": max((route["quote_time"] for route in routes if route["quote_time"] is not None), default=None), "sources": sorted({route["quote_source"] for route in routes if route["quote_source"]})},
         "capital": {"total": pool.total_capital, "in_flight": in_flight_capital, "available": available, "ready_to_return": ready_capital},
         "counts": counts,
         "airports": sorted(airports.values(), key=lambda item: item["symbol"]),

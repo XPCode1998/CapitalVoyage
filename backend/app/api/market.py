@@ -20,12 +20,25 @@ def market_status(request: Request):
     market_open = TradingCalendar().is_market_open(now)
     statuses = [cache.status(q, now=now) for q in quotes.values()]
     quote_status = QuoteStatus.FRESH if quotes and not market_open else (QuoteStatus.FRESH if QuoteStatus.FRESH in statuses else (QuoteStatus.STALE if statuses else QuoteStatus.UNAVAILABLE))
+    poller = request.app.state.runtime.poller
+    source_counts: dict[str, int] = {}
+    for quote in quotes.values():
+        source_counts[quote.source] = source_counts.get(quote.source, 0) + 1
+    newest = max(quotes.values(), key=lambda quote: quote.quote_time, default=None)
+    age_seconds = (
+        max(0, int((now - newest.quote_time).total_seconds()))
+        if newest is not None else None
+    )
     return success({
         "status": MarketStatus.OPEN if market_open else MarketStatus.CLOSED,
         "quote_status": quote_status,
-        "updated_at": max((q.quote_time for q in quotes.values()), default=None),
-        "provider": "akshare",
-        "last_error": str(request.app.state.runtime.poller.last_error) if request.app.state.runtime.poller.last_error else None,
+        "updated_at": newest.quote_time if newest else None,
+        "provider": "tencent (fallback: akshare)",
+        "sources": source_counts,
+        "age_seconds": age_seconds,
+        "last_attempt_at": poller.last_attempt_at,
+        "last_success_at": poller.last_success_at,
+        "last_error": str(poller.last_error) if poller.last_error else None,
     })
 
 

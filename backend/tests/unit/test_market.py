@@ -8,7 +8,7 @@ import pandas as pd
 import pytest
 
 from app.core.enums import QuoteStatus, ReturnPriceMode
-from app.market import AkshareETFMarketProvider, MarketProvider, Quote, QuoteCache
+from app.market import AkshareETFMarketProvider, FallbackMarketProvider, MarketProvider, Quote, QuoteCache, TencentETFMarketProvider
 
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")
@@ -66,6 +66,39 @@ def test_monitor_price_prefers_positive_bid1_otherwise_last(
 def test_market_provider_is_abstract() -> None:
     with pytest.raises(TypeError):
         MarketProvider()
+
+
+def test_tencent_provider_parses_requested_etf_quotes() -> None:
+    received_at = datetime(2026, 8, 28, 10, 0, 10, tzinfo=SHANGHAI)
+    payload = (
+        'v_sh510300="1~沪深300ETF~510300~4.012~4.000~4.001~0~0~0~4.011~12~0~0~0~0~0~0~0~0~4.013~8~0~0~0~0~0~0~0~0~~20260828100008";\n'
+        'v_sz159915="1~创业板ETF~159915~2.345~2.300~2.310~0~0~0~2.344~4~0~0~0~0~0~0~0~0~2.346~5~0~0~0~0~0~0~0~0~~20260828100007";'
+    )
+    provider = TencentETFMarketProvider(now_factory=lambda: received_at, fetcher=lambda _symbols: payload)
+
+    quotes = provider.get_quotes({"510300", "159915", "512880"})
+
+    assert set(quotes) == {"510300", "159915"}
+    assert quotes["510300"].source == "tencent"
+    assert quotes["510300"].bid1 == Decimal("4.011")
+    assert quotes["510300"].ask1 == Decimal("4.013")
+    assert quotes["510300"].quote_time == datetime(2026, 8, 28, 10, 0, 8, tzinfo=SHANGHAI)
+
+
+def test_fallback_provider_uses_backup_on_primary_failure() -> None:
+    at = datetime(2026, 8, 28, 10, 0, tzinfo=SHANGHAI)
+
+    class BrokenProvider(MarketProvider):
+        def get_quotes(self, _symbols: set[str]) -> dict[str, Quote]:
+            raise RuntimeError("primary down")
+
+    class WorkingProvider(MarketProvider):
+        def get_quotes(self, symbols: set[str]) -> dict[str, Quote]:
+            return {symbol: _quote(quote_time=at) for symbol in symbols}
+
+    quotes = FallbackMarketProvider(BrokenProvider(), WorkingProvider()).get_quotes({"510300"})
+
+    assert set(quotes) == {"510300"}
 
 
 def test_quote_cache_uses_quote_time_and_thirty_second_boundary() -> None:

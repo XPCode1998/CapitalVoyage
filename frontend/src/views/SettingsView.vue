@@ -51,7 +51,7 @@ function valueFor(key:SettingKey){
   const values:Partial<Record<SettingKey,string>>={
     total_capital:money(form.total_capital),slot_count:form.slot_count==null?'未设置':`${form.slot_count} 个`,default_slot_amount:money(form.default_slot_amount),
     default_target_return:percent(form.default_target_return),near_return_buffer:percent(form.near_return_buffer),long_voyage_days:form.long_voyage_days==null?'未设置':`${form.long_voyage_days} 个交易日`,
-    market_provider:form.market_provider==='akshare'?'AKShare':form.market_provider||'未设置',market_poll_interval_seconds:form.market_poll_interval_seconds==null?'未设置':`${form.market_poll_interval_seconds} 秒`,
+    market_provider:'腾讯财经主源 · AKShare 备用',market_poll_interval_seconds:form.market_poll_interval_seconds==null?'未设置':`${form.market_poll_interval_seconds} 秒`,
     market_quote_stale_seconds:form.market_quote_stale_seconds==null?'未设置':`${form.market_quote_stale_seconds} 秒`,return_price_mode:form.return_price_mode==='LAST'?'最新价':'买一价',
     buy_commission_rate:percent(form.buy_commission_rate),sell_commission_rate:percent(form.sell_commission_rate),minimum_buy_commission:money(form.minimum_buy_commission),minimum_sell_commission:money(form.minimum_sell_commission),
     other_buy_fee_rate:percent(form.other_buy_fee_rate),other_sell_fee_rate:percent(form.other_sell_fee_rate),notification:({none:'关闭',console:'本地控制台',feishu:'飞书',ntfy:'ntfy'} as Record<string,string>)[form.notification_provider]||'未设置',
@@ -99,7 +99,7 @@ onBeforeRouteLeave(()=>!dirty.value||window.confirm('设置尚未保存，确定
         <template v-else-if="editor==='default_target_return'"><label>默认目标收益率<div class="field-suffix"><input v-model="defaultTargetPercent" autofocus type="number" inputmode="decimal" min="0.01" step="0.01"/><span>%</span></div><small>直接填写百分数，例如 2 表示 2%。</small></label></template>
         <template v-else-if="editor==='near_return_buffer'"><label>近进提醒区间<div class="field-suffix"><input v-model="nearReturnPercent" autofocus type="number" inputmode="decimal" min="0.01" step="0.01"/><span>%</span></div><small>距离目标收益进入该区间时标记为“接近返航”。</small></label></template>
         <template v-else-if="editor==='long_voyage_days'"><label>长航程阈值<div class="field-suffix"><input v-model.number="form.long_voyage_days" autofocus type="number" min="1"/><span>天</span></div><small>超过该交易日数量后标记为长航程。</small></label></template>
-        <template v-else-if="editor==='market_provider'"><label>行情服务商<select v-model="form.market_provider" autofocus><option value="akshare">AKShare</option></select><small>当前版本仅支持 AKShare ETF 行情。</small></label></template>
+        <template v-else-if="editor==='market_provider'"><label>行情服务商<input value="腾讯财经主源 · AKShare 备用" disabled/><small>系统按持仓代码查询腾讯财经；腾讯无有效报价时自动使用 AKShare。两者均不可用时不会触发返航。</small></label></template>
         <template v-else-if="editor==='market_poll_interval_seconds'"><label>行情轮询间隔<div class="field-suffix"><input v-model.number="form.market_poll_interval_seconds" autofocus type="number" min="5"/><span>秒</span></div><small>开市期间获取新行情的频率。</small></label></template>
         <template v-else-if="editor==='market_quote_stale_seconds'"><label>行情过期判定<div class="field-suffix"><input v-model.number="form.market_quote_stale_seconds" autofocus type="number" min="1"/><span>秒</span></div><small>超过此时限的行情不会触发新的返航信号。</small></label></template>
         <template v-else-if="editor==='return_price_mode'"><label>返航参考价格<select v-model="form.return_price_mode" autofocus><option value="BID1">买一价</option><option value="LAST">最新价</option></select><small>只用于监控，最终返航仍以实际成交价为准。</small></label></template>

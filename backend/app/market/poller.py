@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.enums import VoyageStatus
 from app.db.session import SessionLocal
+from app.core.time import now_shanghai
 from app.market.base import MarketProvider
 from app.market.cache import QuoteCache
 from app.market.models import Quote
@@ -67,9 +68,12 @@ class MarketPoller:
         self.next_interval_seconds = normal_interval_seconds
         self.last_error: Exception | None = None
         self.last_callback_error: Exception | None = None
+        self.last_attempt_at = None
+        self.last_success_at = None
 
     def poll_once(self) -> PollResult:
         symbols: frozenset[str] = frozenset()
+        self.last_attempt_at = now_shanghai()
         try:
             symbols = frozenset(self._load_open_symbols())
             if not symbols:
@@ -130,6 +134,7 @@ class MarketPoller:
         self.next_interval_seconds = self.normal_interval_seconds
         self.last_error = None
         self.last_callback_error = None
+        self.last_success_at = now_shanghai()
 
     def _mark_failure(self, error: Exception) -> None:
         self.consecutive_failures += 1

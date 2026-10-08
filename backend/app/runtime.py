@@ -7,7 +7,9 @@ from app.calendar.service import TradingCalendar
 from app.db.session import SessionLocal
 from app.market.akshare_provider import AkshareETFMarketProvider
 from app.market.cache import QuoteCache
+from app.market.fallback_provider import FallbackMarketProvider
 from app.market.poller import MarketPoller
+from app.market.tencent_provider import TencentETFMarketProvider
 from app.notification.console import ConsoleNotifier
 from app.notification.base import NullNotifier
 from app.notification.feishu import FeishuNotifier
@@ -28,7 +30,10 @@ class RuntimeContainer:
             stale = settings.market_quote_stale_seconds
             interval = settings.market_poll_interval_seconds
         self.quote_cache = QuoteCache(stale)
-        self.provider = AkshareETFMarketProvider()
+        self.provider = FallbackMarketProvider(
+            TencentETFMarketProvider(),
+            AkshareETFMarketProvider(),
+        )
         self.poller = MarketPoller(self.provider, self.quote_cache, normal_interval_seconds=interval)
 
     def evaluate_monitors(self) -> None:

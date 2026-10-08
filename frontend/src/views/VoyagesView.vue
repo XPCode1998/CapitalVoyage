@@ -25,6 +25,7 @@ const saving=ref(false)
 const loading=ref(true)
 const query=ref('')
 const slotFilter=ref<'ALL'|'ACTIVE'|'AVAILABLE'>('ALL')
+const stateFilter=ref<'ALL'|'IN_FLIGHT'|'NEAR_RETURN'|'READY_TO_RETURN'|'QUOTE_STALE'>('ALL')
 const security=ref<{symbol:string;name:string;market:string;settlement_mode:string;last_price:string|null}|null>(null)
 const securityLoading=ref(false)
 let lookupTimer:number|undefined
@@ -37,8 +38,9 @@ const activeVoyages=computed(()=>slots.value.filter(slot=>slot.voyage).length)
 const availableSlots=computed(()=>slots.value.length-activeVoyages.value)
 const filteredSlots=computed(()=>slots.value.filter(slot=>{
   const matchesState=slotFilter.value==='ALL'||(slotFilter.value==='ACTIVE'?!!slot.voyage:!slot.voyage)
+  const matchesRuntime=stateFilter.value==='ALL'||slot.voyage?.runtime_state===stateFilter.value
   const text=`${slot.slot_no} ${slot.voyage?.voyage_no||''} ${slot.voyage?.name||''} ${slot.voyage?.symbol||''}`.toLowerCase()
-  return matchesState&&text.includes(query.value.trim().toLowerCase())
+  return matchesState&&matchesRuntime&&text.includes(query.value.trim().toLowerCase())
 }))
 let createSnapshot=JSON.stringify(form),editSnapshot='',returnSnapshot=''
 const createDirty=computed(()=>JSON.stringify(form)!==createSnapshot)
@@ -85,6 +87,7 @@ onMounted(()=>{load();lookupSecurity()})
     <div class="dispatch-toolbar panel">
       <div class="dispatch-tabs" aria-label="舱位筛选"><button type="button" :class="{active:slotFilter==='ALL'}" :aria-pressed="slotFilter==='ALL'" @click="slotFilter='ALL'">全部舱位 <span>{{slots.length}}</span></button><button type="button" :class="{active:slotFilter==='ACTIVE'}" :aria-pressed="slotFilter==='ACTIVE'" @click="slotFilter='ACTIVE'">持有中 <span>{{activeVoyages}}</span></button><button type="button" :class="{active:slotFilter==='AVAILABLE'}" :aria-pressed="slotFilter==='AVAILABLE'" @click="slotFilter='AVAILABLE'">待调度 <span>{{availableSlots}}</span></button></div>
       <label class="dispatch-search"><Search :size="17"/><span class="sr-only">搜索舱位、航次或 ETF</span><input v-model="query" placeholder="搜索航次、ETF 或舱位"/></label>
+      <div class="runtime-filters" aria-label="航次状态筛选"><button v-for="item in [['ALL','全部'],['IN_FLIGHT','在途'],['NEAR_RETURN','接近目标'],['READY_TO_RETURN','可返航'],['QUOTE_STALE','行情异常']] as const" :key="item[0]" type="button" :class="{active:stateFilter===item[0]}" @click="stateFilter=item[0]">{{item[1]}}</button></div>
     </div>
 
     <div v-if="loading" class="loading" aria-live="polite">正在读取资金舱位…</div>
@@ -92,7 +95,7 @@ onMounted(()=>{load();lookupSecurity()})
     <section v-else-if="filteredSlots.length" class="ticket-grid" aria-label="资金舱位">
       <SlotTicket v-for="slot in filteredSlots" :key="slot.id" :slot="slot" @activate="activateSlot"/>
     </section>
-    <div v-else class="panel dispatch-empty"><Search :size="24"/><h2>{{error?'舱位读取失败':'没有匹配的舱位'}}</h2><p>{{error?'请重试以读取最新持仓。':'调整关键词或舱位状态后再试。'}}</p><button class="secondary" @click="error?load():(query='',slotFilter='ALL')">{{error?'重新加载':'清除筛选'}}</button></div>
+    <div v-else class="panel dispatch-empty"><Search :size="24"/><h2>{{error?'舱位读取失败':'没有匹配的舱位'}}</h2><p>{{error?'请重试以读取最新持仓。':'调整关键词或航次状态后再试。'}}</p><button class="secondary" @click="error?load():(query='',slotFilter='ALL',stateFilter='ALL')">{{error?'重新加载':'清除筛选'}}</button></div>
 
     <FlightSidePanel v-if="creating" title="记录买入" eyebrow="新航次 · 资金调度" strip-label="CAPITAL DISPATCH" :prevent-close="saving" @close="closeCreating">
       <form id="create-flight-form" class="form-grid aviation-form drawer-form" @submit.prevent="create">
@@ -179,6 +182,7 @@ onMounted(()=>{load();lookupSecurity()})
 </template>
 
 <style scoped>
+.dispatch-toolbar{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,.72fr);gap:12px;margin-bottom:18px;padding:12px}.dispatch-tabs,.runtime-filters{display:flex;flex-wrap:wrap;gap:7px}.dispatch-tabs button,.runtime-filters button{min-height:32px;padding:0 10px;border:1px solid var(--line);border-radius:999px;color:#66798d;background:#fff;font-size:11px;font-weight:650}.dispatch-tabs button span{margin-left:4px;color:#8c9daf}.dispatch-tabs button.active,.runtime-filters button.active{border-color:#aac8e8;color:#2165b6;background:#edf5ff}.dispatch-search{position:relative;display:flex;align-items:center;gap:7px;min-width:0;padding:0 10px;border:1px solid var(--line);border-radius:9px;background:#fff;color:#788b9e}.dispatch-search input{min-width:0;height:34px;padding:0;border:0;box-shadow:none}.runtime-filters{grid-column:1/-1;padding-top:2px;border-top:1px solid var(--line-soft)}.runtime-filters button{margin-top:9px}@media(max-width:700px){.dispatch-toolbar{grid-template-columns:1fr}.dispatch-search{grid-row:1}.dispatch-tabs{overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px}.dispatch-tabs button,.runtime-filters button{flex:0 0 auto}.runtime-filters{overflow-x:auto;flex-wrap:nowrap;padding-bottom:5px}}
 .voyages-page{max-width:1680px}.ticket-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:18px 16px}.dispatch-summary{display:flex;align-items:center;gap:16px;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:#fff;box-shadow:var(--shadow-ticket)}.dispatch-summary span{display:grid;justify-items:center;gap:2px;color:var(--muted-2);font-size:11px}.dispatch-summary b{color:var(--ink);font-size:20px;font-variant-numeric:tabular-nums}.dispatch-summary i{width:1px;height:30px;background:var(--line)}
 .form-alert{grid-column:1/-1;margin-bottom:0}.modal-actions{grid-column:1/-1;display:flex;justify-content:flex-end;gap:9px;margin-top:5px}.modal-actions button,.voyage-actions button{border:0;border-radius:8px;padding:10px 16px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:12px;font-weight:650}.return-summary{grid-column:1/-1;display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:8px;padding:14px;background:#f6f8fa;border-radius:10px}.return-summary div{display:grid;gap:4px}.return-summary span{font-size:9px;color:#89949f}.return-summary b{font-size:12px}.return-note{grid-column:1/-1;margin:0;padding:11px 13px;border-radius:8px;background:#f1f8f5;color:#527266;font-size:10px;line-height:1.6}.return-button,.action-return{background:#168b62;color:#fff}.return-button:hover,.action-return:hover{background:#117451}.confirm-cancel{background:#fff0f0;color:#bd3f45}.cancel-confirm>strong{font-size:16px}.cancel-confirm>p:not(.error-banner){color:#74808c;font-size:12px;line-height:1.7}.cancel-confirm .modal-actions{margin-top:22px}.voyage-actions{display:grid;grid-template-columns:1fr 1fr 1.25fr;gap:8px;margin-top:28px}.voyage-actions button{padding:11px 10px}.action-edit{background:#eef4fc;color:#2866b7}.action-cancel{background:#fff1f1;color:#bd3f45}.voyage-actions button:disabled{background:#f1f3f5;color:#a2aab3;cursor:not-allowed}.success-banner{margin-bottom:14px}
 @media(max-width:1439px){.ticket-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}}
