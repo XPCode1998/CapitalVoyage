@@ -55,7 +55,7 @@ app.add_middleware(
     session_cookie="capitalvoyage_session",
     max_age=60 * 60 * 24 * 30,
     same_site="lax",
-    https_only=config.app_env.lower() == "production",
+    https_only=config.session_https_only,
 )
 
 for router in (auth.router, dashboard.router, slots.router, voyages.router, returns.router, exits.router, history.router, reconcile.router, market.router, settings.router):

@@ -15,7 +15,9 @@ def test_local_account_login_and_password_update(initialized_db_session):
     try:
         assert client.get("/api/auth/session").json()["data"] == {"authenticated": False, "username": None}
         assert client.post("/api/auth/login", json={"username": "xp", "password": "wrong"}).status_code == 401
-        assert client.post("/api/auth/login", json={"username": "xp", "password": "980127"}).json()["data"] == {"username": "xp"}
+        login = client.post("/api/auth/login", json={"username": "xp", "password": "980127"})
+        assert login.json()["data"] == {"username": "xp"}
+        assert "Secure" not in login.headers["set-cookie"]
         changed = client.put("/api/auth/credentials", json={"username": "xp-invest", "current_password": "980127", "new_password": "new-pass"})
         assert changed.status_code == 200
         assert changed.json()["data"] == {"username": "xp-invest"}

@@ -48,6 +48,7 @@ class AppConfig(BaseSettings):
     alert_cooldown_minutes: int = Field(default=30, ge=0)
     scheduler_enabled: bool = True
     session_secret: str = Field(default_factory=lambda: token_urlsafe(48), min_length=32)
+    session_https_only: bool = False
 
     @property
     def resolved_database_url(self) -> str:
